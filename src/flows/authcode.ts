@@ -96,7 +96,9 @@ function startCallbackServer(config: KeycloakConfig, expectedState: string): Pro
       resolve({
         waitForCode(timeoutMs: number) {
           const timeout = setTimeout(() => {
-            rejectCode(new Error(`Timed out after ${Math.round(timeoutMs / 1000)}s waiting for the browser callback.`));
+            rejectCode(
+              new Error(`Timed out after ${Math.round(timeoutMs / 1000)}s waiting for the browser callback.`),
+            );
           }, timeoutMs);
           timeout.unref?.();
           return codePromise.finally(() => clearTimeout(timeout));

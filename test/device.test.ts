@@ -24,9 +24,7 @@ describe("device authorization grant", () => {
     expect(device.deviceCode).toBe("DEV");
     expect(device.userCode).toBe("WDJB-MJHT");
     expect(device.verificationUri).toBe("https://kc.example.com/device");
-    expect(device.verificationUriComplete).toBe(
-      "https://kc.example.com/device?user_code=WDJB-MJHT",
-    );
+    expect(device.verificationUriComplete).toBe("https://kc.example.com/device?user_code=WDJB-MJHT");
     expect(device.expiresAt).toBe(600_000);
     expect(device.intervalMs).toBe(5000);
     expect(fetchImpl.calls[0]?.params.get("client_id")).toBe("opencode-cli");
@@ -57,7 +55,15 @@ describe("device authorization grant", () => {
     const config = testConfig();
     const fetchImpl = jsonFetch([
       // 1: start device authorization
-      { body: { device_code: "DEV", user_code: "AAAA", verification_uri: "https://kc/d", expires_in: 600, interval: 1 } },
+      {
+        body: {
+          device_code: "DEV",
+          user_code: "AAAA",
+          verification_uri: "https://kc/d",
+          expires_in: 600,
+          interval: 1,
+        },
+      },
       // 2: first poll -> pending
       { status: 400, body: { error: "authorization_pending" } },
       // 3: second poll -> complete

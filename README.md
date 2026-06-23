@@ -6,7 +6,7 @@ via OAuth2/OIDC and feeds short-lived, auto-refreshed access tokens to an
 
 It replaces the pattern of pasting a long-lived static JWT as `apiKey`: OpenCode
 now obtains a real access token from Keycloak and refreshes it automatically.
-**Nothing changes on the gateway side** — the Keycloak access token *is* the JWT
+**Nothing changes on the gateway side** — the Keycloak access token _is_ the JWT
 AgentGateway validates (JWKS + CEL policies on the claims).
 
 ## Features
@@ -48,18 +48,18 @@ Everything is configurable via environment variables (prefix `OPENCODE_KC_`)
 and/or plugin options in `opencode.json`. **Plugin options take precedence over
 environment variables.**
 
-| Env var | Plugin option | Default | Description |
-| --- | --- | --- | --- |
-| `OPENCODE_KC_ISSUER` | `issuer` | — (required) | Realm issuer URL, e.g. `https://kc.example.com/realms/agents` |
-| `OPENCODE_KC_CLIENT_ID` | `clientId` | — (required) | Public client id |
-| `OPENCODE_KC_SCOPES` | `scopes` | `openid` | Space/comma list; `openid` always added |
-| `OPENCODE_KC_PROVIDER_ID` | `providerId` | `agentgateway` | Provider id the auth hook attaches to |
-| `OPENCODE_KC_CALLBACK_HOST` | `callbackHost` | `127.0.0.1` | Localhost callback bind host |
-| `OPENCODE_KC_CALLBACK_PORT` | `callbackPort` | `49170` | Localhost callback port (`0` = ephemeral) |
-| `OPENCODE_KC_REDIRECT_PATH` | `redirectPath` | `/callback` | Redirect path |
-| `OPENCODE_KC_BASE_URL` | `baseUrl` | — | AgentGateway base URL (informational) |
-| `OPENCODE_KC_REFRESH_LEEWAY` | `refreshLeewaySeconds` | `30` | Refresh this many seconds before expiry |
-| `OPENCODE_KC_BROWSER_TIMEOUT` | `browserTimeoutSeconds` | `300` | Browser callback wait timeout |
+| Env var                       | Plugin option           | Default        | Description                                                   |
+| ----------------------------- | ----------------------- | -------------- | ------------------------------------------------------------- |
+| `OPENCODE_KC_ISSUER`          | `issuer`                | — (required)   | Realm issuer URL, e.g. `https://kc.example.com/realms/agents` |
+| `OPENCODE_KC_CLIENT_ID`       | `clientId`              | — (required)   | Public client id                                              |
+| `OPENCODE_KC_SCOPES`          | `scopes`                | `openid`       | Space/comma list; `openid` always added                       |
+| `OPENCODE_KC_PROVIDER_ID`     | `providerId`            | `agentgateway` | Provider id the auth hook attaches to                         |
+| `OPENCODE_KC_CALLBACK_HOST`   | `callbackHost`          | `127.0.0.1`    | Localhost callback bind host                                  |
+| `OPENCODE_KC_CALLBACK_PORT`   | `callbackPort`          | `49170`        | Localhost callback port (`0` = ephemeral)                     |
+| `OPENCODE_KC_REDIRECT_PATH`   | `redirectPath`          | `/callback`    | Redirect path                                                 |
+| `OPENCODE_KC_BASE_URL`        | `baseUrl`               | —              | AgentGateway base URL (informational)                         |
+| `OPENCODE_KC_REFRESH_LEEWAY`  | `refreshLeewaySeconds`  | `30`           | Refresh this many seconds before expiry                       |
+| `OPENCODE_KC_BROWSER_TIMEOUT` | `browserTimeoutSeconds` | `300`          | Browser callback wait timeout                                 |
 
 ## Keycloak client setup
 
@@ -69,7 +69,7 @@ Create a client in your realm with:
 - **Client authentication:** **OFF** (public client)
 - **Standard flow:** **ON** (Authorization Code)
 - **OAuth 2.0 Device Authorization Grant:** **ON**
-- **PKCE:** Advanced → *Proof Key for Code Exchange Code Challenge Method* =
+- **PKCE:** Advanced → _Proof Key for Code Exchange Code Challenge Method_ =
   **S256**
 - **Valid Redirect URIs:** include the localhost callback, e.g.
   `http://127.0.0.1:49170/callback`
@@ -83,8 +83,8 @@ AgentGateway's CEL policies typically check claims such as **`aud`** and
 **roles**. The access token must carry them, which is configured **on the
 Keycloak side**, not in this plugin:
 
-- **`aud`** — add the AgentGateway audience via a *Client Scope* with an
-  **Audience** mapper (or an *Audience Resolve* mapper), and request that scope
+- **`aud`** — add the AgentGateway audience via a _Client Scope_ with an
+  **Audience** mapper (or an _Audience Resolve_ mapper), and request that scope
   (e.g. `OPENCODE_KC_SCOPES="openid aud-agentgateway"`).
 - **roles** — assign realm/client roles and ensure the relevant role mapper is
   included in the requested scopes.

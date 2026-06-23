@@ -25,9 +25,7 @@ describe("authorization code flow", () => {
 
   it("exchanges an authorization code for tokens with the verifier", async () => {
     const config = testConfig();
-    const fetchImpl = jsonFetch([
-      { body: { access_token: "AT", refresh_token: "RT", expires_in: 300 } },
-    ]);
+    const fetchImpl = jsonFetch([{ body: { access_token: "AT", refresh_token: "RT", expires_in: 300 } }]);
 
     const tokens = await exchangeCode(
       config,

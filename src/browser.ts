@@ -11,7 +11,10 @@ type Env = Record<string, string | undefined>;
  * localhost callback server. Conservative: when unsure on Linux we assume no
  * browser (device flow is always a safe fallback).
  */
-export function hasLocalBrowser(env: Env = process.env, platform: NodeJS.Platform = process.platform): boolean {
+export function hasLocalBrowser(
+  env: Env = process.env,
+  platform: NodeJS.Platform = process.platform,
+): boolean {
   // Remote shells almost never have a usable local browser / localhost callback.
   if (env["SSH_CONNECTION"] || env["SSH_TTY"] || env["SSH_CLIENT"]) return false;
   // Common container / CI signals.

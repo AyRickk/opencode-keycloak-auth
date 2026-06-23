@@ -69,8 +69,7 @@ async function postForm(
 
   if (!response.ok) {
     const error = typeof body.error === "string" ? body.error : `http_${response.status}`;
-    const description =
-      typeof body.error_description === "string" ? body.error_description : undefined;
+    const description = typeof body.error_description === "string" ? body.error_description : undefined;
     throw new KeycloakOAuthError(response.status, error, description);
   }
   return body;
@@ -164,7 +163,11 @@ export async function startDeviceAuthorization(
   const userCode = raw["user_code"];
   const verificationUri = raw["verification_uri"];
   if (typeof deviceCode !== "string" || typeof userCode !== "string" || typeof verificationUri !== "string") {
-    throw new KeycloakOAuthError(200, "invalid_device_response", "missing device_code/user_code/verification_uri");
+    throw new KeycloakOAuthError(
+      200,
+      "invalid_device_response",
+      "missing device_code/user_code/verification_uri",
+    );
   }
 
   const expiresIn = typeof raw["expires_in"] === "number" ? (raw["expires_in"] as number) : 600;

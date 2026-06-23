@@ -139,7 +139,9 @@ export function resolveConfig(
     scopes: toScopes(scopesRaw),
     callbackHost: options.callbackHost ?? env("CALLBACK_HOST", source) ?? DEFAULTS.callbackHost,
     callbackPort: toPort(callbackPortRaw, `${ENV_PREFIX}CALLBACK_PORT`),
-    redirectPath: ensureLeadingSlash(options.redirectPath ?? env("REDIRECT_PATH", source) ?? DEFAULTS.redirectPath),
+    redirectPath: ensureLeadingSlash(
+      options.redirectPath ?? env("REDIRECT_PATH", source) ?? DEFAULTS.redirectPath,
+    ),
     baseUrl: options.baseUrl ?? env("BASE_URL", source),
     refreshLeewaySeconds: toNonNegativeInt(refreshLeewayRaw, `${ENV_PREFIX}REFRESH_LEEWAY`),
     browserTimeoutSeconds: toNonNegativeInt(browserTimeoutRaw, `${ENV_PREFIX}BROWSER_TIMEOUT`),

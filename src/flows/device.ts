@@ -18,7 +18,10 @@ export interface DeviceFlowDeps {
 const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /** Build the device-code login method. */
-export async function deviceMethod(config: KeycloakConfig, deps: DeviceFlowDeps = {}): Promise<AuthOAuthResult> {
+export async function deviceMethod(
+  config: KeycloakConfig,
+  deps: DeviceFlowDeps = {},
+): Promise<AuthOAuthResult> {
   const now = deps.now ?? Date.now;
   const sleep = deps.sleep ?? defaultSleep;
   const device = await startDeviceAuthorization(config, deps);

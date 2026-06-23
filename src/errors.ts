@@ -36,9 +36,7 @@ export class KeycloakNetworkError extends Error {
 /** A refresh attempt failed; the caller should fall back to an interactive login. */
 export class RefreshFailedError extends Error {
   constructor(cause: unknown) {
-    super(
-      `Token refresh failed (${describe(cause)}). ` + `Please log in again with: opencode auth login.`,
-    );
+    super(`Token refresh failed (${describe(cause)}). ` + `Please log in again with: opencode auth login.`);
     this.name = "RefreshFailedError";
     this.cause = cause;
   }
