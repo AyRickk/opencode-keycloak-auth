@@ -1,5 +1,7 @@
 # opencode-keycloak-auth
 
+[![CI](https://github.com/AyRickk/opencode-keycloak-auth/actions/workflows/ci.yml/badge.svg)](https://github.com/AyRickk/opencode-keycloak-auth/actions/workflows/ci.yml)
+
 An [OpenCode](https://opencode.ai) **auth plugin** that logs in to **Keycloak**
 via OAuth2/OIDC and feeds short-lived, auto-refreshed access tokens to an
 **OpenAI-compatible AgentGateway** provider.
