@@ -4,7 +4,7 @@
  *   2. refreshes the access token if it expires within the configured leeway,
  *   3. persists the refreshed tokens via the OpenCode client (auth.json, 0600),
  *   4. returns `{ apiKey }`, which OpenCode injects as `Authorization: Bearer`
- *      towards AgentGateway.
+ *      towards the provider.
  *
  * On refresh failure it throws {@link RefreshFailedError}, prompting the user to
  * log in again — we never silently send an expired token.

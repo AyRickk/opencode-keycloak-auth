@@ -43,7 +43,7 @@ describe("loader", () => {
     expect(fetchImpl.calls[0]?.params.get("grant_type")).toBe("refresh_token");
     expect(fetchImpl.calls[0]?.params.get("refresh_token")).toBe("OLD_RT");
     expect(client.auth.set).toHaveBeenCalledWith({
-      path: { id: "agentgateway" },
+      path: { id: "keycloak" },
       body: { type: "oauth", access: "NEW", refresh: "NEW_RT", expires: 980_000 + 300_000 },
     });
   });

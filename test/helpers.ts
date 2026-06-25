@@ -6,7 +6,7 @@ export function testConfig(overrides: Partial<KeycloakConfig> = {}): KeycloakCon
     {
       issuer: "https://kc.example.com/realms/agents",
       clientId: "opencode-cli",
-      providerId: "agentgateway",
+      providerId: "keycloak",
       callbackPort: 49170,
     },
     {},

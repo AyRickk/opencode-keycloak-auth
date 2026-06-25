@@ -4,12 +4,12 @@
 
 An [OpenCode](https://opencode.ai) **auth plugin** that logs in to **Keycloak**
 via OAuth2/OIDC and feeds short-lived, auto-refreshed access tokens to an
-**OpenAI-compatible AgentGateway** provider.
+**OpenAI-compatible** provider.
 
 It replaces the pattern of pasting a long-lived static JWT as `apiKey`: OpenCode
 now obtains a real access token from Keycloak and refreshes it automatically.
-**Nothing changes on the gateway side** — the Keycloak access token _is_ the JWT
-AgentGateway validates (JWKS + CEL policies on the claims).
+**Nothing changes on the provider side** — the Keycloak access token _is_ the JWT
+the provider validates (e.g. JWKS + claim policies).
 
 ## Features
 
@@ -55,11 +55,11 @@ environment variables.**
 | `OPENCODE_KC_ISSUER`          | `issuer`                | — (required)   | Realm issuer URL, e.g. `https://kc.example.com/realms/agents` |
 | `OPENCODE_KC_CLIENT_ID`       | `clientId`              | — (required)   | Public client id                                              |
 | `OPENCODE_KC_SCOPES`          | `scopes`                | `openid`       | Space/comma list; `openid` always added                       |
-| `OPENCODE_KC_PROVIDER_ID`     | `providerId`            | `agentgateway` | Provider id the auth hook attaches to                         |
+| `OPENCODE_KC_PROVIDER_ID`     | `providerId`            | `keycloak`     | Provider id the auth hook attaches to                         |
 | `OPENCODE_KC_CALLBACK_HOST`   | `callbackHost`          | `127.0.0.1`    | Localhost callback bind host                                  |
 | `OPENCODE_KC_CALLBACK_PORT`   | `callbackPort`          | `49170`        | Localhost callback port (`0` = ephemeral)                     |
 | `OPENCODE_KC_REDIRECT_PATH`   | `redirectPath`          | `/callback`    | Redirect path                                                 |
-| `OPENCODE_KC_BASE_URL`        | `baseUrl`               | —              | AgentGateway base URL (informational)                         |
+| `OPENCODE_KC_BASE_URL`        | `baseUrl`               | —              | Provider base URL (informational)                            |
 | `OPENCODE_KC_REFRESH_LEEWAY`  | `refreshLeewaySeconds`  | `30`           | Refresh this many seconds before expiry                       |
 | `OPENCODE_KC_BROWSER_TIMEOUT` | `browserTimeoutSeconds` | `300`          | Browser callback wait timeout                                 |
 
@@ -79,25 +79,24 @@ Create a client in your realm with:
   `http://127.0.0.1/*`)
 - **Web Origins:** not required (no browser-based XHR to Keycloak from the app).
 
-### Claims required by AgentGateway (CEL policies)
+### Claims required by the provider
 
-AgentGateway's CEL policies typically check claims such as **`aud`** and
+A provider that validates the JWT typically checks claims such as **`aud`** and
 **roles**. The access token must carry them, which is configured **on the
 Keycloak side**, not in this plugin:
 
-- **`aud`** — add the AgentGateway audience via a _Client Scope_ with an
+- **`aud`** — add the provider audience via a _Client Scope_ with an
   **Audience** mapper (or an _Audience Resolve_ mapper), and request that scope
-  (e.g. `OPENCODE_KC_SCOPES="openid aud-agentgateway"`).
+  (e.g. `OPENCODE_KC_SCOPES="openid aud-api"`).
 - **roles** — assign realm/client roles and ensure the relevant role mapper is
   included in the requested scopes.
 
 Verify a freshly issued token with `jwt` tooling and confirm `aud` / `realm_access.roles`
-match what your CEL policies expect.
+match what your provider's policies expect.
 
 ## `opencode.json`
 
-Declare the custom OpenAI-compatible provider (baseURL = AgentGateway) and enable
-the plugin:
+Declare the custom OpenAI-compatible provider and enable the plugin:
 
 ```json
 {
@@ -108,18 +107,18 @@ the plugin:
       {
         "issuer": "https://kc.example.com/realms/agents",
         "clientId": "opencode-cli",
-        "providerId": "agentgateway",
-        "scopes": "openid aud-agentgateway",
+        "providerId": "keycloak",
+        "scopes": "openid aud-api",
         "callbackPort": 49170
       }
     ]
   ],
   "provider": {
-    "agentgateway": {
+    "keycloak": {
       "npm": "@ai-sdk/openai-compatible",
-      "name": "AgentGateway (Keycloak)",
+      "name": "Keycloak",
       "options": {
-        "baseURL": "https://gateway.example.com/v1"
+        "baseURL": "https://api.example.com/v1"
       },
       "models": {
         "qwen2.5-coder-32b": { "name": "Qwen2.5 Coder 32B" },
@@ -130,24 +129,24 @@ the plugin:
 }
 ```
 
-> The plugin's `provider` (default `agentgateway`) **must match** the provider key
+> The plugin's `provider` (default `keycloak`) **must match** the provider key
 > under `"provider"`. The plugin's `loader` returns `{ apiKey: <access_token> }`,
 > which the OpenAI-compatible provider sends as `Authorization: Bearer <token>`
-> to AgentGateway.
+> to your API.
 
 You can also configure everything via env vars instead of plugin options:
 
 ```bash
 export OPENCODE_KC_ISSUER="https://kc.example.com/realms/agents"
 export OPENCODE_KC_CLIENT_ID="opencode-cli"
-export OPENCODE_KC_SCOPES="openid aud-agentgateway"
+export OPENCODE_KC_SCOPES="openid aud-api"
 ```
 
 ## Logging in
 
 ```bash
 opencode auth login
-# pick the "agentgateway" provider, then a Keycloak method:
+# pick the "keycloak" provider, then a Keycloak method:
 #   - Browser (PKCE, auto-capture)   ← recommended on a workstation
 #   - Browser (paste the code)       ← fallback when the port is busy
 #   - Device code (headless / SSH)   ← recommended on a server/container

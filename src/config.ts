@@ -11,7 +11,7 @@
  */
 
 export interface KeycloakPluginOptions {
-  /** Provider id this plugin attaches its auth hook to. Default: `agentgateway`. */
+  /** Provider id this plugin attaches its auth hook to. Default: `keycloak`. */
   providerId?: string;
   /** Keycloak realm issuer URL, e.g. `https://kc.example.com/realms/my-realm`. */
   issuer?: string;
@@ -25,7 +25,7 @@ export interface KeycloakPluginOptions {
   callbackPort?: number;
   /** Path of the redirect URI. Default: `/callback`. */
   redirectPath?: string;
-  /** Informational AgentGateway base URL (used by the loader as a sanity hint). */
+  /** Informational provider base URL (used by the loader as a sanity hint). */
   baseUrl?: string;
   /**
    * Refresh access tokens this many seconds before they expire.
@@ -58,7 +58,7 @@ export interface KeycloakEndpoints {
 const ENV_PREFIX = "OPENCODE_KC_";
 
 const DEFAULTS = {
-  providerId: "agentgateway",
+  providerId: "keycloak",
   scopes: ["openid"],
   callbackHost: "127.0.0.1",
   callbackPort: 49170,

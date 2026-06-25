@@ -8,16 +8,16 @@ describe("config resolution", () => {
       {
         OPENCODE_KC_ISSUER: "https://kc.example.com/realms/agents/",
         OPENCODE_KC_CLIENT_ID: "cli",
-        OPENCODE_KC_SCOPES: "openid profile aud:agentgateway",
+        OPENCODE_KC_SCOPES: "openid profile aud:api",
         OPENCODE_KC_CALLBACK_PORT: "55001",
       },
     );
 
     expect(config.issuer).toBe("https://kc.example.com/realms/agents"); // trailing slash trimmed
     expect(config.clientId).toBe("cli");
-    expect(config.scopes).toEqual(["openid", "profile", "aud:agentgateway"]);
+    expect(config.scopes).toEqual(["openid", "profile", "aud:api"]);
     expect(config.callbackPort).toBe(55001);
-    expect(config.providerId).toBe("agentgateway"); // default
+    expect(config.providerId).toBe("keycloak"); // default
   });
 
   it("lets plugin options override environment variables", () => {

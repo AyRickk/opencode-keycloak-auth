@@ -4,10 +4,10 @@
  * An OpenCode auth plugin that authenticates against Keycloak via OAuth2/OIDC
  * (Authorization Code + PKCE S256, with a Device Authorization Grant fallback)
  * and feeds short-lived, auto-refreshed access tokens to an OpenAI-compatible
- * AgentGateway provider.
+ * provider.
  *
- * The Keycloak access token IS the JWT AgentGateway validates (JWKS + CEL
- * policies), so nothing changes on the gateway side.
+ * The Keycloak access token IS the JWT the downstream provider validates (e.g.
+ * JWKS + claim policies), so nothing changes on the provider side.
  */
 import type { AuthHook, Plugin, PluginOptions } from "@opencode-ai/plugin";
 import { resolveConfig, type KeycloakConfig, type KeycloakPluginOptions } from "./config.js";
