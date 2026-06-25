@@ -28,21 +28,64 @@ the provider validates (e.g. JWKS + claim policies).
 
 ## Install
 
-This package does not need to be published to a public npm registry.
+> **How OpenCode loads a plugin.** OpenCode resolves a plugin entry either by
+> **package name from the npm registry** (needs network access — it downloads the
+> package itself, it does _not_ look in your project's or global `node_modules`)
+> **or by a filesystem path** to a folder that contains a `package.json` and a
+> built `dist/`. For an **offline / air-gapped** host you must use the
+> **filesystem-path** form — a bare package name will fail with
+> `Unknown provider "<id>"` because OpenCode cannot reach the registry.
 
-**Vendored / offline install:**
+### 1. Build the artifact (on a machine with network access)
 
 ```bash
-# Build the artifact once on a connected machine:
-npm install && npm run build
-npm pack                      # -> opencode-keycloak-auth-0.1.0.tgz
-
-# On the target (air-gapped) machine, drop the tarball next to your config and:
-npm install ./opencode-keycloak-auth-0.1.0.tgz
+npm ci
+npm run build          # -> dist/ (ESM + d.ts)
+npm pack               # -> opencode-keycloak-auth-<version>.tgz
 ```
 
-Or reference a local checkout directly in `opencode.json` (see below). OpenCode
-can load a plugin by package name, local path, or file URL.
+### 2. Install it where OpenCode can load it
+
+Pick **one** of the following — all are plain `npm` commands.
+
+**a) From the npm registry (online hosts):** if you publish the package, just
+reference it by name in `opencode.json` (`"plugin": ["opencode-keycloak-auth"]`)
+and OpenCode downloads it on first run. No manual install step.
+
+**b) Vendored tarball (offline / air-gapped):** install the tarball into a
+dedicated folder, then reference the **extracted folder by path**:
+
+```bash
+mkdir -p ~/.opencode-plugins && cd ~/.opencode-plugins
+npm init -y
+npm install /path/to/opencode-keycloak-auth-<version>.tgz
+# -> ~/.opencode-plugins/node_modules/opencode-keycloak-auth   (contains dist/)
+```
+
+Then in `opencode.json` point the plugin at that folder (see below):
+
+```jsonc
+"plugin": [["/home/you/.opencode-plugins/node_modules/opencode-keycloak-auth", { /* options */ }]]
+```
+
+**c) Local checkout:** after `npm run build`, reference the checkout directory
+directly (`"plugin": [["/abs/path/to/opencode-keycloak-auth", { /* options */ }]]`).
+
+> ⚠️ The referenced folder must contain a built `dist/` — OpenCode loads
+> `dist/index.js` via the package's `main`. If you skipped `npm run build`, the
+> plugin will fail to load.
+
+### Offline note: models.dev
+
+On first run OpenCode fetches `https://models.dev/api.json`. The failure is
+**non-fatal** (login still works) but it adds a startup delay and a scary log
+line. On air-gapped hosts, silence it:
+
+```bash
+export OPENCODE_DISABLE_MODELS_FETCH=1
+# or point it at a local copy:
+export OPENCODE_MODELS_PATH=/path/to/models.json
+```
 
 ## Configuration
 
@@ -96,38 +139,47 @@ match what your provider's policies expect.
 
 ## `opencode.json`
 
-Declare the custom OpenAI-compatible provider and enable the plugin:
+Declare the custom OpenAI-compatible provider and enable the plugin. The first
+element of each `plugin` entry is **either** the published package name (online)
+**or** a filesystem path to the built folder (offline — see Install):
 
-```json
+```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
     [
-      "opencode-keycloak-auth",
+      // online: "opencode-keycloak-auth"
+      // offline: an absolute path to the built folder
+      "/home/you/.opencode-plugins/node_modules/opencode-keycloak-auth",
       {
         "issuer": "https://kc.example.com/realms/agents",
         "clientId": "opencode-cli",
         "providerId": "keycloak",
         "scopes": "openid aud-api",
-        "callbackPort": 49170
-      }
-    ]
+        "callbackPort": 49170,
+      },
+    ],
   ],
   "provider": {
     "keycloak": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "Keycloak",
       "options": {
-        "baseURL": "https://api.example.com/v1"
+        "baseURL": "https://api.example.com/v1",
       },
       "models": {
         "qwen2.5-coder-32b": { "name": "Qwen2.5 Coder 32B" },
-        "llama-3.3-70b": { "name": "Llama 3.3 70B" }
-      }
-    }
-  }
+        "llama-3.3-70b": { "name": "Llama 3.3 70B" },
+      },
+    },
+  },
 }
 ```
+
+> **Provider npm package.** The `provider.keycloak.npm` package
+> (`@ai-sdk/openai-compatible`) is fetched by OpenCode the first time you **call a
+> model** (not during login). On an air-gapped host, pre-install it the same way
+> as the plugin and OpenCode will reuse it from disk.
 
 > The plugin's `provider` (default `keycloak`) **must match** the provider key
 > under `"provider"`. The plugin's `loader` returns `{ apiKey: <access_token> }`,
@@ -154,6 +206,29 @@ opencode auth login
 
 On headless hosts (SSH / container / no `DISPLAY`) the **Device code** method is
 offered first automatically.
+
+## Troubleshooting
+
+**`Unknown provider "keycloak"` / the provider is missing from `auth login`.**
+This means OpenCode never loaded the plugin, so no auth method is registered for
+the provider id. The provider block in `opencode.json` alone is _not_ enough —
+the login methods come from the plugin. Run the diagnostic:
+
+```bash
+opencode auth login -p keycloak --print-logs --log-level DEBUG
+```
+
+- A line `failed to load plugin … error="Missing Keycloak issuer …"` → you did
+  not pass `issuer`/`clientId` (plugin options or `OPENCODE_KC_*` env vars).
+- **No** plugin line at all, and you referenced the plugin by **package name** on
+  an offline host → OpenCode tried to fetch it from the registry. Reference it by
+  **filesystem path** instead (see Install).
+
+Since this plugin now registers the provider even when the config is incomplete,
+selecting the **`⚠ not configured`** method prints the exact missing value.
+
+**`Failed to fetch models.dev`.** Harmless — see the offline note in Install. Set
+`OPENCODE_DISABLE_MODELS_FETCH=1` to silence it.
 
 ## How it maps to the OpenCode auth API
 

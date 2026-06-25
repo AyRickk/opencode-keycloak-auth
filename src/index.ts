@@ -10,7 +10,12 @@
  * JWKS + claim policies), so nothing changes on the provider side.
  */
 import type { AuthHook, Plugin, PluginOptions } from "@opencode-ai/plugin";
-import { resolveConfig, type KeycloakConfig, type KeycloakPluginOptions } from "./config.js";
+import {
+  resolveConfig,
+  resolveProviderId,
+  type KeycloakConfig,
+  type KeycloakPluginOptions,
+} from "./config.js";
 import { hasLocalBrowser } from "./browser.js";
 import { browserAutoMethod, browserCodeMethod } from "./flows/authcode.js";
 import { deviceMethod } from "./flows/device.js";
@@ -40,9 +45,44 @@ function buildMethods(config: KeycloakConfig, preferDevice: boolean): AuthHook["
   return preferDevice ? [device, browserPaste, browserAuto] : [browserAuto, browserPaste, device];
 }
 
+/**
+ * Build a single placeholder method used when the config is incomplete. It keeps
+ * the provider visible in `opencode auth login` and reports the real, actionable
+ * reason when the user selects it — instead of the whole plugin failing to load
+ * (which OpenCode swallows, leaving the provider mysteriously absent).
+ */
+function buildErrorMethods(reason: string): AuthHook["methods"] {
+  return [
+    {
+      type: "oauth" as const,
+      label: "Keycloak · ⚠ not configured — see error",
+      authorize: async (): Promise<never> => {
+        throw new Error(
+          `Keycloak auth plugin is not configured. ${reason} ` +
+            `Set the "issuer" and "clientId" plugin options in opencode.json (or the ` +
+            `OPENCODE_KC_ISSUER / OPENCODE_KC_CLIENT_ID environment variables).`,
+        );
+      },
+    },
+  ];
+}
+
 export const KeycloakAuthPlugin: Plugin = async (input, options?: PluginOptions) => {
-  const config = resolveConfig((options ?? {}) as KeycloakPluginOptions);
+  const opts = (options ?? {}) as KeycloakPluginOptions;
   const preferDevice = !hasLocalBrowser();
+
+  let config: KeycloakConfig;
+  try {
+    config = resolveConfig(opts);
+  } catch (cause) {
+    // Never throw at load time: that makes OpenCode drop the plugin silently and
+    // the provider never shows up in `opencode auth login`. Register the provider
+    // anyway and surface the real error only when a login method is picked.
+    const reason = cause instanceof Error ? cause.message : String(cause);
+    return {
+      auth: { provider: resolveProviderId(opts), methods: buildErrorMethods(reason) },
+    };
+  }
 
   const auth: AuthHook = {
     provider: config.providerId,

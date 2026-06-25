@@ -148,6 +148,17 @@ export function resolveConfig(
   };
 }
 
+/**
+ * Resolve only the provider id. Unlike {@link resolveConfig} this never throws,
+ * so the plugin can still register its provider (and surface a clear error at
+ * login time) even when the full config is incomplete — otherwise a missing
+ * `issuer`/`clientId` would make the whole plugin fail to load and the provider
+ * would silently never appear in `opencode auth login`.
+ */
+export function resolveProviderId(options: KeycloakPluginOptions = {}, source: Env = process.env): string {
+  return options.providerId ?? env("PROVIDER_ID", source) ?? DEFAULTS.providerId;
+}
+
 function ensureLeadingSlash(path: string): string {
   return path.startsWith("/") ? path : `/${path}`;
 }
