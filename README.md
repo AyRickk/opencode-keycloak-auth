@@ -50,18 +50,18 @@ Everything is configurable via environment variables (prefix `OPENCODE_KC_`)
 and/or plugin options in `opencode.json`. **Plugin options take precedence over
 environment variables.**
 
-| Env var                       | Plugin option           | Default        | Description                                                   |
-| ----------------------------- | ----------------------- | -------------- | ------------------------------------------------------------- |
-| `OPENCODE_KC_ISSUER`          | `issuer`                | — (required)   | Realm issuer URL, e.g. `https://kc.example.com/realms/agents` |
-| `OPENCODE_KC_CLIENT_ID`       | `clientId`              | — (required)   | Public client id                                              |
-| `OPENCODE_KC_SCOPES`          | `scopes`                | `openid`       | Space/comma list; `openid` always added                       |
-| `OPENCODE_KC_PROVIDER_ID`     | `providerId`            | `keycloak`     | Provider id the auth hook attaches to                         |
-| `OPENCODE_KC_CALLBACK_HOST`   | `callbackHost`          | `127.0.0.1`    | Localhost callback bind host                                  |
-| `OPENCODE_KC_CALLBACK_PORT`   | `callbackPort`          | `49170`        | Localhost callback port (`0` = ephemeral)                     |
-| `OPENCODE_KC_REDIRECT_PATH`   | `redirectPath`          | `/callback`    | Redirect path                                                 |
-| `OPENCODE_KC_BASE_URL`        | `baseUrl`               | —              | Provider base URL (informational)                            |
-| `OPENCODE_KC_REFRESH_LEEWAY`  | `refreshLeewaySeconds`  | `30`           | Refresh this many seconds before expiry                       |
-| `OPENCODE_KC_BROWSER_TIMEOUT` | `browserTimeoutSeconds` | `300`          | Browser callback wait timeout                                 |
+| Env var                       | Plugin option           | Default      | Description                                                   |
+| ----------------------------- | ----------------------- | ------------ | ------------------------------------------------------------- |
+| `OPENCODE_KC_ISSUER`          | `issuer`                | — (required) | Realm issuer URL, e.g. `https://kc.example.com/realms/agents` |
+| `OPENCODE_KC_CLIENT_ID`       | `clientId`              | — (required) | Public client id                                              |
+| `OPENCODE_KC_SCOPES`          | `scopes`                | `openid`     | Space/comma list; `openid` always added                       |
+| `OPENCODE_KC_PROVIDER_ID`     | `providerId`            | `keycloak`   | Provider id the auth hook attaches to                         |
+| `OPENCODE_KC_CALLBACK_HOST`   | `callbackHost`          | `127.0.0.1`  | Localhost callback bind host                                  |
+| `OPENCODE_KC_CALLBACK_PORT`   | `callbackPort`          | `49170`      | Localhost callback port (`0` = ephemeral)                     |
+| `OPENCODE_KC_REDIRECT_PATH`   | `redirectPath`          | `/callback`  | Redirect path                                                 |
+| `OPENCODE_KC_BASE_URL`        | `baseUrl`               | —            | Provider base URL (informational)                             |
+| `OPENCODE_KC_REFRESH_LEEWAY`  | `refreshLeewaySeconds`  | `30`         | Refresh this many seconds before expiry                       |
+| `OPENCODE_KC_BROWSER_TIMEOUT` | `browserTimeoutSeconds` | `300`        | Browser callback wait timeout                                 |
 
 ## Keycloak client setup
 

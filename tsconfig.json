@@ -17,6 +17,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "verbatimModuleSyntax": true,
+    "ignoreDeprecations": "6.0",
     "outDir": "dist"
   },
   "include": ["src", "test"]
