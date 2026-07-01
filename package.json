@@ -1,6 +1,6 @@
 {
   "name": "opencode-keycloak-auth",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "OpenCode auth plugin: OAuth2/OIDC against Keycloak (Authorization Code + PKCE S256 and Device Authorization Grant) for an OpenAI-compatible provider.",
   "type": "module",
   "license": "MIT",

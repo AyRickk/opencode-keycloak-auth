@@ -44,6 +44,17 @@ npm run build          # -> dist/ (ESM + d.ts)
 npm pack               # -> opencode-keycloak-auth-<version>.tgz
 ```
 
+> **Prebuilt artifact (no build needed).** Every [GitHub Release](https://github.com/AyRickk/opencode-keycloak-auth/releases)
+> attaches a ready-to-use, self-contained bundle `opencode-keycloak-auth.js`.
+> Drop it straight into OpenCode's auto-load directory and configure via
+> `OPENCODE_KC_*` env vars (auto-loaded plugins don't receive inline options):
+>
+> ```bash
+> mkdir -p ~/.config/opencode/plugins
+> curl -fsSL -o ~/.config/opencode/plugins/keycloak.js \
+>   https://github.com/AyRickk/opencode-keycloak-auth/releases/latest/download/opencode-keycloak-auth.js
+> ```
+
 ### 2. Install it where OpenCode can load it
 
 Pick **one** of the following — all are plain `npm` commands.
