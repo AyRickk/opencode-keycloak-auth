@@ -6,6 +6,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-09-28
+
+### Added
+
+- Package is now published to npm on each release (`npm install opencode-keycloak-auth`).
+
 ## [0.4.1] - 2026-07-08
 
 ### Fixed
