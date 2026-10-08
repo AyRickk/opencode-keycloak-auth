@@ -181,4 +181,23 @@ describe("oauth (browser auto-capture) method", () => {
     await expect(auth.callback).resolves.toMatchObject({ methodID: "oauth", access: "AT", refresh: "RT" });
     expect(fetchImpl.calls[0]!.params.get("redirect_uri")).toBe(url.searchParams.get("redirect_uri"));
   });
+
+  it("frees the callback port of an abandoned attempt when a new one starts", async () => {
+    const config = testConfig({ callbackPort: 0 });
+    const reg = byId(buildRegistrations(config, { preferDevice: false }), "oauth");
+
+    const abandoned = await reg.authorize({});
+    if (abandoned.mode !== "auto") throw new Error("expected auto mode");
+    const superseded = expect(abandoned.callback).rejects.toThrow(/newer/i);
+
+    // Same port as the abandoned attempt (the first bind fixed it on `config`).
+    const retry = await reg.authorize({});
+    await superseded;
+
+    if (retry.mode !== "auto") throw new Error("expected auto mode");
+    retry.callback.catch(() => {});
+    expect(new URL(retry.url).searchParams.get("redirect_uri")).toBe(
+      `http://127.0.0.1:${config.callbackPort}/callback`,
+    );
+  });
 });

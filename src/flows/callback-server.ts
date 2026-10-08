@@ -15,7 +15,11 @@ const SUCCESS_PAGE =
 export interface CallbackServer {
   /** Resolves with the authorization code, or rejects on error/timeout. */
   waitForCode(timeoutMs: number): Promise<string>;
-  close(): void;
+  /**
+   * Stop listening and free the port. With a `reason`, a still-pending
+   * `waitForCode` rejects with it (no-op once the code was received).
+   */
+  close(reason?: Error): void;
 }
 
 /**
@@ -94,8 +98,11 @@ export function startCallbackServer(config: KeycloakConfig, expectedState: strin
           timeout.unref?.();
           return codePromise.finally(() => clearTimeout(timeout));
         },
-        close() {
+        close(reason?: Error) {
+          if (reason) rejectCode(reason);
           server.close();
+          // Drop idle keep-alive sockets from the browser so the port is free now.
+          server.closeAllConnections?.();
         },
       });
     });

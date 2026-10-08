@@ -21,7 +21,7 @@ import { describe } from "../errors.js";
 import { exchangeCode, startDeviceAuthorization } from "../keycloak.js";
 import { log } from "../log.js";
 import { generatePkce, randomState } from "../pkce.js";
-import { startCallbackServer } from "../flows/callback-server.js";
+import { startCallbackServer, type CallbackServer } from "../flows/callback-server.js";
 import { waitForDeviceTokens } from "../flows/device-poll.js";
 import { buildAuthorizeUrl, deviceInstructions, pasteCodeInstructions } from "../flows/shared.js";
 import { createRefresher, toCredential, type OAuthCredential } from "./credential.js";
@@ -46,6 +46,9 @@ export function buildRegistrations(config: KeycloakConfig, deps: MethodDeps): OA
   const refresher = createRefresher(config, net);
   const refresh = (credential: OAuthCredential) => refresher.refresh(credential);
   const recommended = (yes: boolean) => (yes ? " — recommended" : "");
+  // The callback server of the latest browser attempt. An abandoned attempt
+  // (closed dialog, retry) would otherwise hold the port until its timeout.
+  let activeServer: CallbackServer | undefined;
 
   const register = (
     id: string,
@@ -76,8 +79,10 @@ export function buildRegistrations(config: KeycloakConfig, deps: MethodDeps): OA
     async () => {
       const pkce = generatePkce();
       const state = randomState();
+      activeServer?.close(new Error("Superseded by a newer browser login attempt."));
       // Bind the server BEFORE handing the URL back, so it is ready for the redirect.
       const server = await startCallbackServer(config, state);
+      activeServer = server;
       const url = buildAuthorizeUrl(config, pkce, state);
       const timeoutMs = config.browserTimeoutSeconds * 1000;
       const callback = settle("browser (auto-capture)", async () => {
@@ -91,6 +96,7 @@ export function buildRegistrations(config: KeycloakConfig, deps: MethodDeps): OA
           return toCredential(tokens, "oauth");
         } finally {
           server.close();
+          if (activeServer === server) activeServer = undefined;
         }
       });
       // The host subscribes right after `authorize` resolves; never let an early
