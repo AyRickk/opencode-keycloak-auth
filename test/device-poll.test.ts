@@ -10,6 +10,7 @@ const device = (over: Partial<DeviceAuthorization> = {}): DeviceAuthorization =>
   verificationUriComplete: undefined,
   expiresAt: 600_000,
   intervalMs: 5_000,
+  codeVerifier: "VERIFIER",
   ...over,
 });
 

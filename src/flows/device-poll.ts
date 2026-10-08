@@ -42,7 +42,7 @@ export async function waitForDeviceTokens(
   let intervalMs = device.intervalMs;
   while (now() < device.expiresAt) {
     await sleep(intervalMs);
-    const result = await pollDeviceToken(config, device.deviceCode, deps);
+    const result = await pollDeviceToken(config, device.deviceCode, deps, device.codeVerifier);
     switch (result.status) {
       case "complete":
         return result.tokens;

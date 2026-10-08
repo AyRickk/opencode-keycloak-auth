@@ -7,6 +7,7 @@
 import { KeycloakNetworkError, KeycloakOAuthError } from "./errors.js";
 import { endpoints, type KeycloakConfig } from "./config.js";
 import { log } from "./log.js";
+import { generatePkce } from "./pkce.js";
 
 /** Normalized token set with an absolute expiry timestamp (ms since epoch). */
 export interface TokenSet {
@@ -35,6 +36,11 @@ export interface DeviceAuthorization {
   expiresAt: number;
   /** Polling interval in milliseconds. */
   intervalMs: number;
+  /**
+   * PKCE verifier bound to this device code. Keycloak requires PKCE on the
+   * device grant when the client enforces it (Code Challenge Method = S256).
+   */
+  codeVerifier: string;
 }
 
 const FORM_HEADERS = {
@@ -152,18 +158,24 @@ export async function refreshTokens(
   return toTokenSet(raw, now());
 }
 
-/** Start a device authorization grant (RFC 8628). */
+/**
+ * Start a device authorization grant (RFC 8628), with PKCE S256: required by
+ * Keycloak when the client enforces PKCE, ignored as unknown parameters otherwise.
+ */
 export async function startDeviceAuthorization(
   config: KeycloakConfig,
   deps: { fetchImpl?: typeof fetch; now?: () => number } = {},
 ): Promise<DeviceAuthorization> {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const now = deps.now ?? Date.now;
+  const pkce = generatePkce();
   const raw = await postForm(
     endpoints(config).device,
     {
       client_id: config.clientId,
       scope: config.scopes.join(" "),
+      code_challenge: pkce.challenge,
+      code_challenge_method: pkce.method,
     },
     fetchImpl,
   );
@@ -190,6 +202,7 @@ export async function startDeviceAuthorization(
     verificationUriComplete: typeof complete === "string" ? complete : undefined,
     expiresAt: now() + expiresIn * 1000,
     intervalMs: intervalSec * 1000,
+    codeVerifier: pkce.verifier,
   };
 }
 
@@ -209,6 +222,7 @@ export async function pollDeviceToken(
   config: KeycloakConfig,
   deviceCode: string,
   deps: { fetchImpl?: typeof fetch; now?: () => number } = {},
+  codeVerifier?: string,
 ): Promise<DevicePollResult> {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const now = deps.now ?? Date.now;
@@ -219,6 +233,7 @@ export async function pollDeviceToken(
         grant_type: "urn:ietf:params:oauth:grant-type:device_code",
         client_id: config.clientId,
         device_code: deviceCode,
+        ...(codeVerifier ? { code_verifier: codeVerifier } : {}),
       },
       fetchImpl,
     );
