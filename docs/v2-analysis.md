@@ -90,7 +90,7 @@ settings: {baseURL}}, models: [] })` on an id that is also in `opencode.json` is
 | Paste-code fallback                     | Supported as its own method (`mode: "code"`, CLI prompts "Paste the authorization code").                                                                                                                                                                                                                                                                 |
 | Device flow                             | A `mode: "auto"` method: `url` = `verification_uri_complete`, `instructions` carry the user code, `expiresAt` = device-code expiry, `callback` = polling promise. CLI prints instructions + URL, opens a browser only on a TTY.                                                                                                                           |
 | Method order / device-first on headless | Host keeps registration order (CLI only pushes `key` methods last) → device registered first when no local browser.                                                                                                                                                                                                                                       |
-| Error mode                              | Register the integration with one `⚠ not configured` method whose `authorize` throws the actionable message.                                                                                                                                                                                                                                              |
+| Error mode                              | Register the integration with one `⚠ not configured (missing: …)` method whose `authorize` throws the actionable message. The missing settings are in the **label** because the host hides `authorize` errors (see §6).                                                                                                                                   |
 | v1 `auth.json` import from the plugin   | **Not implemented.** The plugin API exposes no way to create an OAuth credential (`ctx.integration` only has `connect.key/external`, `oauth.connect` flows). The only route would be a fake, user-visible login method — not clean. Documented instead: re-run `opencode auth login keycloak` (or a one-shot `opencode api POST /api/credential` recipe). |
 | `refreshLeewaySeconds`                  | Host-owned (5 min). Option accepted and ignored in v2, documented.                                                                                                                                                                                                                                                                                        |
 | Minimum OpenCode v2                     | Only **2.0.25** was exercised. The API used (`integration.transform`, `method.update` with `refresh`, `provider.transform().add`, `ctx.options`) is the documented 2.0 surface, but 2.0.x changes fast; the README states "tested with 2.0.25".                                                                                                           |
@@ -108,3 +108,44 @@ OAuth — it does not replace this plugin.
 - Client identification header for agentgateway metrics: no code needed in v2 —
   `providers.<id>.headers: { "X-Client": "opencode" }` is sent on every request (verified with the
   fake server).
+
+## 6. Found during end-to-end verification
+
+Setup: Keycloak **26.8.0** (`start-dev`, realm configured as in production: one public client,
+PKCE S256, device grant, `offline_access`, **Revoke Refresh Token** on, 120 s access tokens so
+that every host resolve refreshes), a fake OpenAI-compatible server that validates each Bearer
+against Keycloak's `userinfo`, and the **packed tarball** installed with `npm install --offline`.
+
+1. **PKCE is required on the device grant** when the client enforces S256: Keycloak 26.8
+   rejected the device authorization with `Missing parameter: code_challenge_method`. The
+   published 0.4.2 fails the same way (re-checked), so the v1 device flow was broken for the
+   recommended client setup. Fixed in the shared client (challenge on authorization, verifier on
+   each poll).
+2. **Errors thrown by `authorize` become a bare HTTP 500** (`UnexpectedStatus: 500` in the CLI);
+   the message is only in `opencode.log`. Errors in the `callback` (attempt `failed`) _are_
+   shown to the user. → ERROR mode puts the missing settings in the method label.
+3. **Abandoned browser attempts** kept the callback port until their timeout (also true in v1);
+   a new v2 attempt now closes the previous server.
+4. Concurrency confirmed live: two parallel model calls on an expiring token, with strict
+   rotation, produced a single Keycloak refresh and no `invalid_grant`.
+5. A revoked offline session surfaces as the plugin's `invalid_grant` message on the next model
+   call; reconnecting with the `oauth` method restores service.
+6. Manual import of a v1 `auth.json` entry through `POST /api/credential` (`methodID: "oauth"`)
+   works: the imported offline refresh token is redeemed by the host via our `refresh`.
+
+| Check (OpenCode 2.0.25, packaged plugin)                         | Result |
+| ---------------------------------------------------------------- | ------ |
+| Plugin `active` in `/api/plugin` (folder path → `server.js`)     | ✅     |
+| Single-file bundle in `~/.config/opencode/plugins/`, env config  | ✅     |
+| Integration + 3 methods in `/api/integration/keycloak`           | ✅     |
+| Provider active and bound (implicitly by id, and via `baseUrl`)  | ✅     |
+| PKCE login (localhost capture) → `Credential.OAuth` (`Offline`)  | ✅     |
+| Device login → `methodID: "device"`                              | ✅     |
+| Model call → Bearer accepted by Keycloak, `X-Client` header sent | ✅     |
+| Access token expired → host refresh → next call OK               | ✅     |
+| ERROR mode (no issuer/clientId)                                  | ✅     |
+| **OpenCode 1.18.35 / 1.17.11**: load, PKCE + device login, calls | ✅     |
+
+Not covered: the interactive TUI (`/connect` was driven through the same HTTP API the TUI uses),
+a real browser (a scripted HTTP client played the browser), Windows/Linux hosts, and OpenCode
+2.0.x releases other than 2.0.25.
