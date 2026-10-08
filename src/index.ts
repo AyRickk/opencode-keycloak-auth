@@ -17,7 +17,7 @@ import {
   type KeycloakConfig,
   type KeycloakPluginOptions,
 } from "./config.js";
-import { hasLocalBrowser } from "./browser.js";
+import { hasLocalBrowser, openBrowser } from "./browser.js";
 import { browserAutoMethod, browserCodeMethod } from "./flows/authcode.js";
 import { deviceMethod } from "./flows/device.js";
 import { createLoader } from "./loader.js";
@@ -30,20 +30,26 @@ type V2Context = V2Plugin.Context;
 type V2Cleanup = V2Plugin.Cleanup | void;
 
 function buildMethods(config: KeycloakConfig, preferDevice: boolean): AuthHook["methods"] {
+  // OpenCode v1 only prints "Go to: <url>"; opening the browser is the plugin's
+  // job (v1 built-in plugins do it too). Skipped on headless hosts.
+  const opening = <R extends { url: string }>(result: R): R => {
+    if (!preferDevice) openBrowser(result.url);
+    return result;
+  };
   const browserAuto = {
     type: "oauth" as const,
     label: `Keycloak · Browser (PKCE, auto-capture)${preferDevice ? "" : " — recommended"}`,
-    authorize: () => browserAutoMethod(config),
+    authorize: async () => opening(await browserAutoMethod(config)),
   };
   const browserPaste = {
     type: "oauth" as const,
     label: "Keycloak · Browser (paste the code)",
-    authorize: async () => browserCodeMethod(config),
+    authorize: async () => opening(browserCodeMethod(config)),
   };
   const device = {
     type: "oauth" as const,
     label: `Keycloak · Device code (headless / SSH)${preferDevice ? " — recommended" : ""}`,
-    authorize: () => deviceMethod(config),
+    authorize: async () => opening(await deviceMethod(config)),
   };
 
   // In headless environments lead with the device flow; otherwise lead with the
