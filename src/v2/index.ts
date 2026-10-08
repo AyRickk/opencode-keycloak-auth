@@ -18,7 +18,7 @@ import {
   type KeycloakConfig,
   type KeycloakPluginOptions,
 } from "../config.js";
-import { incompleteConfigWarning, notConfiguredMessage } from "../errors.js";
+import { ConfigError, incompleteConfigWarning, notConfiguredMessage } from "../errors.js";
 import { log } from "../log.js";
 import { buildRegistrations, type OAuthRegistration } from "./methods.js";
 import { linkProvider } from "./provider.js";
@@ -50,7 +50,10 @@ export async function setupV2(ctx: SetupContext, deps: SetupDeps = {}): Promise<
     const providerId = resolveProviderId(options, env);
     log.warn(incompleteConfigWarning(providerId, cause));
     const reason = cause instanceof Error ? cause.message : String(cause);
-    const integration = await registerIntegration(ctx, providerId, [notConfigured(providerId, reason)]);
+    const missing = cause instanceof ConfigError ? cause.missing : [];
+    const integration = await registerIntegration(ctx, providerId, [
+      notConfigured(providerId, reason, missing),
+    ]);
     return () => integration.dispose();
   }
 
@@ -89,11 +92,16 @@ function registerIntegration(ctx: SetupContext, id: string, registrations: OAuth
   });
 }
 
-/** Placeholder method used in ERROR mode: selecting it surfaces the real reason. */
-function notConfigured(providerId: string, reason: string): OAuthRegistration {
+/**
+ * Placeholder method used in ERROR mode. OpenCode 2.0.x answers an `authorize`
+ * error with a bare HTTP 500 (the message only reaches opencode.log), so the
+ * label itself names what is missing.
+ */
+function notConfigured(providerId: string, reason: string, missing: readonly string[]): OAuthRegistration {
+  const detail = missing.length ? `missing: ${missing.join(", ")}` : "see opencode.log";
   return {
     integrationID: providerId,
-    method: { id: "not-configured", type: "oauth", label: "Keycloak · ⚠ not configured — see error" },
+    method: { id: "not-configured", type: "oauth", label: `Keycloak · ⚠ not configured (${detail})` },
     authorize: async () => {
       throw new Error(notConfiguredMessage(reason));
     },

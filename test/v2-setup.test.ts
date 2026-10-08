@@ -149,6 +149,14 @@ describe("setupV2", () => {
       expect(methods[0]?.method.label).toMatch(/not configured/i);
     });
 
+    it("names the missing settings in the method label (v2 hides authorize errors behind HTTP 500)", async () => {
+      const { ctx, integrations } = fakeContext({ issuer: "https://kc/realms/r" });
+
+      await setupV2(ctx, desktop);
+
+      expect(integrations.get("keycloak")!.methods[0]!.method.label).toMatch(/missing: clientId\b/);
+    });
+
     it("names exactly the missing values when the method is selected", async () => {
       const { ctx, integrations } = fakeContext({ clientId: "cli" });
 
