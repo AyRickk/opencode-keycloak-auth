@@ -17,7 +17,7 @@ import { exchangeCode } from "../keycloak.js";
 import { generatePkce, randomState } from "../pkce.js";
 import { describe } from "../errors.js";
 import { log } from "../log.js";
-import { buildAuthorizeUrl, toSuccess } from "./shared.js";
+import { buildAuthorizeUrl, pasteCodeInstructions, toSuccess } from "./shared.js";
 import { startCallbackServer } from "./callback-server.js";
 
 /** Browser flow with automatic localhost capture (`method: "auto"`). */
@@ -63,11 +63,7 @@ export function browserCodeMethod(config: KeycloakConfig): AuthOAuthResult {
 
   return {
     url,
-    instructions:
-      `Open the URL and sign in. You will be redirected to\n` +
-      `${redirectUri(config)}?code=...&state=...\n` +
-      `(the page itself may fail to load — that is expected). Copy the value of the ` +
-      `\`code\` query parameter from your browser's address bar and paste it here.`,
+    instructions: pasteCodeInstructions(config),
     method: "code",
     callback: async (code: string) => {
       try {

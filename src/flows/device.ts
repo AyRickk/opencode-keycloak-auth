@@ -9,7 +9,7 @@ import type { KeycloakConfig } from "../config.js";
 import { startDeviceAuthorization } from "../keycloak.js";
 import { DeviceFlowError, waitForDeviceTokens, type DevicePollDeps } from "./device-poll.js";
 import { log } from "../log.js";
-import { toSuccess } from "./shared.js";
+import { deviceInstructions, toSuccess } from "./shared.js";
 
 export type DeviceFlowDeps = DevicePollDeps;
 
@@ -24,13 +24,7 @@ export async function deviceMethod(
 
   return {
     url: verificationUrl,
-    instructions:
-      `To sign in, open this URL on any device:\n  ${device.verificationUri}\n` +
-      `and enter the code:\n  ${device.userCode}\n` +
-      (device.verificationUriComplete
-        ? `(or open ${device.verificationUriComplete}, which pre-fills the code)\n`
-        : "") +
-      `Waiting for you to approve …`,
+    instructions: deviceInstructions(device),
     method: "auto",
     callback: async () => {
       try {
