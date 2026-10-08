@@ -30,6 +30,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Breaking (programmatic use only):** the package's default export is now the
+  plain `{ id, setup, server }` object instead of the v1 plugin function. OpenCode
+  itself is unaffected (v1 calls `server()`, v2 calls `setup()`); code that
+  imported the default export and called it should use the named
+  `KeycloakAuthPlugin` export instead.
 - `refreshLeewaySeconds` / `OPENCODE_KC_REFRESH_LEEWAY` only applies to OpenCode
   v1; it is accepted and ignored on v2 (the host owns the refresh schedule).
 - `@opencode-ai/plugin` is now an **optional** peer dependency (OpenCode v2 users
