@@ -6,6 +6,48 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **OpenCode v2 support** from the same package. The default export is now a
+  plain `{ id, setup, server }` object: OpenCode v2 calls `setup(ctx)`, which
+  lazily loads the new `src/v2` code; OpenCode v1 keeps calling `server()`, the
+  unchanged v1 plugin. Verified end-to-end against Keycloak 26.8 with OpenCode
+  2.0.25, 1.18.35 and 1.17.11.
+  - Registers integration `<providerId>` with three methods — `oauth` (browser,
+    localhost auto-capture), `code` (paste the code) and `device` — each with a
+    `refresh` the host calls ~5 min before expiry. The host sends the Bearer.
+  - Single-flight refresh per refresh token (the v2 host does not de-duplicate
+    concurrent refreshes), so Keycloak refresh-token rotation never triggers a
+    spurious `invalid_grant`; `invalid_grant` explains how to reconnect.
+  - Declares the OpenAI-compatible provider when `baseUrl` is set (your
+    `providers.<id>` entry still wins), or binds an existing one.
+  - ERROR mode kept: an incomplete config registers a "⚠ not configured
+    (missing: …)" method and logs a `warn`.
+- `server.js` at the package root and an `exports["./server"]` entry, which
+  OpenCode v2 resolves when the plugin is referenced by folder path or name.
+- `scripts/check-bundle.mjs`, run by `npm run build`: the release bundle must be a
+  single file with no runtime import besides Node built-ins.
+
+### Changed
+
+- `refreshLeewaySeconds` / `OPENCODE_KC_REFRESH_LEEWAY` only applies to OpenCode
+  v1; it is accepted and ignored on v2 (the host owns the refresh schedule).
+- `@opencode-ai/plugin` is now an **optional** peer dependency (OpenCode v2 users
+  do not need it). `@opencode/plugin` 2.0.25 is a type-only dev dependency.
+- The build no longer splits code into chunks: `dist/index.js` is the whole
+  plugin.
+
+### Fixed
+
+- **Device login against a client that enforces PKCE** (S256, the recommended
+  setup) failed on Keycloak 26 with `Missing parameter: code_challenge_method`.
+  The device grant now sends PKCE (challenge on authorization, verifier on each
+  poll); servers that do not require it ignore it. Affects OpenCode v1 too.
+- A browser redirect that failed before the code was awaited raised an unhandled
+  promise rejection.
+- (v2) Retrying a browser login no longer fails with "port already in use" while
+  an abandoned attempt still holds the callback port.
+
 ## [0.4.2] - 2026-09-28
 
 ### Added
@@ -91,7 +133,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fallbacks, and a Device Authorization Grant for headless hosts. Automatic
   token refresh, public-client/PKCE-only, zero runtime dependencies.
 
-[Unreleased]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.2.3...v0.3.0
