@@ -1,5 +1,5 @@
 /**
- * opencode-oauth-keycloak
+ * opencode-keycloak-auth
  *
  * An OpenCode auth plugin that authenticates against Keycloak via OAuth2/OIDC
  * (Authorization Code + PKCE S256, with a Device Authorization Grant fallback)
@@ -10,6 +10,7 @@
  * JWKS + claim policies), so nothing changes on the provider side.
  */
 import type { AuthHook, Plugin, PluginOptions } from "@opencode-ai/plugin";
+import type { Plugin as V2Plugin } from "@opencode/plugin";
 import {
   resolveConfig,
   resolveProviderId,
@@ -20,10 +21,13 @@ import { hasLocalBrowser } from "./browser.js";
 import { browserAutoMethod, browserCodeMethod } from "./flows/authcode.js";
 import { deviceMethod } from "./flows/device.js";
 import { createLoader } from "./loader.js";
-import { ConfigError } from "./errors.js";
+import { incompleteConfigWarning, notConfiguredMessage } from "./errors.js";
 import { log } from "./log.js";
 
 export type { KeycloakPluginOptions, KeycloakConfig } from "./config.js";
+
+type V2Context = V2Plugin.Context;
+type V2Cleanup = V2Plugin.Cleanup | void;
 
 function buildMethods(config: KeycloakConfig, preferDevice: boolean): AuthHook["methods"] {
   const browserAuto = {
@@ -59,11 +63,7 @@ function buildErrorMethods(reason: string): AuthHook["methods"] {
       type: "oauth" as const,
       label: "Keycloak · ⚠ not configured — see error",
       authorize: async (): Promise<never> => {
-        throw new Error(
-          `Keycloak auth plugin is not configured. ${reason} ` +
-            `Set the "issuer" and "clientId" plugin options in opencode.json (or the ` +
-            `OPENCODE_KC_ISSUER / OPENCODE_KC_CLIENT_ID environment variables).`,
-        );
+        throw new Error(notConfiguredMessage(reason));
       },
     },
   ];
@@ -85,12 +85,7 @@ export const KeycloakAuthPlugin: Plugin = async (input, options?: PluginOptions)
     // Log loudly: a missing/incomplete config is the single most common failure
     // (e.g. env vars or plugin options dropped), and it previously produced no
     // signal at all — the provider just silently stopped working.
-    const missing = cause instanceof ConfigError ? cause.missing : [];
-    log.warn(
-      `configuration incomplete — provider ${JSON.stringify(providerId)} registered in ERROR mode` +
-        (missing.length ? ` (missing: ${missing.join(", ")})` : "") +
-        `; auth will fail until fixed. ${reason}`,
-    );
+    log.warn(incompleteConfigWarning(providerId, cause));
     return {
       auth: { provider: providerId, methods: buildErrorMethods(reason) },
     };
@@ -111,4 +106,19 @@ export const KeycloakAuthPlugin: Plugin = async (input, options?: PluginOptions)
   return { auth };
 };
 
-export default KeycloakAuthPlugin;
+/**
+ * Dual OpenCode v1/v2 export. OpenCode v2 validates `{ id, setup }` (extra keys
+ * are ignored); OpenCode v1 calls `server()`. The v2 code is imported lazily so
+ * v1 never evaluates it, and nothing here imports `@opencode/plugin` at runtime:
+ * the object is plain, so the self-contained bundle needs no node_modules.
+ */
+const plugin = {
+  id: "opencode-keycloak-auth",
+  setup: async (ctx: V2Context): Promise<V2Cleanup> => {
+    const { setupV2 } = await import("./v2/index.js");
+    return setupV2(ctx);
+  },
+  server: KeycloakAuthPlugin,
+};
+
+export default plugin;
