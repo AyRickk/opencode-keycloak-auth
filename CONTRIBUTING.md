@@ -96,6 +96,12 @@ Releases are tag-driven:
 2. Bump `version` in `package.json`.
 3. Commit `chore: release vX.Y.Z` and push a matching `vX.Y.Z` tag.
 
+**Pre-releases** (`vX.Y.Z-rc.N`, `-alpha.N`, …) only need steps 2–3, without
+moving the changelog. Any version with a `-` is published under the npm dist-tag
+`next` (never `latest`) and as a GitHub pre-release (never "latest release"), so
+regular users are not affected. Install one with
+`npm install opencode-keycloak-auth@next` or `@X.Y.Z-rc.N`.
+
 The Release workflow then verifies, builds, attaches the artifacts
 (`opencode-keycloak-auth.js` + the tarball), and **sets the GitHub Release
 description from the matching `CHANGELOG.md` section** — so always update the

@@ -54,16 +54,31 @@ jobs:
           # (2) Vendored tarball (dist + README + package.json) for `npm install ./*.tgz`.
           npm pack
 
+      - name: Detect pre-release
+        id: channel
+        run: |
+          # A SemVer pre-release (v1.2.3-rc.1, v1.2.3-alpha.0…) must never become
+          # npm `latest` nor the GitHub "latest release" (the README downloads
+          # releases/latest/download/opencode-keycloak-auth.js).
+          if [[ "${GITHUB_REF_NAME#v}" == *-* ]]; then
+            echo "npm_tag=next" >> "$GITHUB_OUTPUT"
+            echo "gh_flags=--prerelease --latest=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "npm_tag=latest" >> "$GITHUB_OUTPUT"
+            echo "gh_flags=" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Publish to npm
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ steps.channel.outputs.npm_tag }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
           # Idempotent on workflow re-runs: skip if this version is already on npm.
           if npm view "opencode-keycloak-auth@${VERSION}" version >/dev/null 2>&1; then
             echo "opencode-keycloak-auth@${VERSION} already published — skipping."
           else
-            npm publish opencode-keycloak-auth-${VERSION}.tgz --access public
+            npm publish opencode-keycloak-auth-${VERSION}.tgz --access public --tag "$NPM_TAG"
           fi
 
       - name: Extract release notes from CHANGELOG
@@ -88,6 +103,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           HAVE_NOTES: ${{ steps.notes.outputs.have_notes }}
+          GH_FLAGS: ${{ steps.channel.outputs.gh_flags }}
         run: |
           TAG="${GITHUB_REF_NAME}"
           ASSETS=(opencode-keycloak-auth.js opencode-keycloak-auth-*.tgz)
@@ -98,7 +114,7 @@ jobs:
               gh release edit "$TAG" --notes-file RELEASE_NOTES.md
             fi
           elif [ "$HAVE_NOTES" = "true" ]; then
-            gh release create "$TAG" --title "$TAG" --notes-file RELEASE_NOTES.md "${ASSETS[@]}"
+            gh release create "$TAG" --title "$TAG" --notes-file RELEASE_NOTES.md $GH_FLAGS "${ASSETS[@]}"
           else
-            gh release create "$TAG" --title "$TAG" --generate-notes "${ASSETS[@]}"
+            gh release create "$TAG" --title "$TAG" --generate-notes $GH_FLAGS "${ASSETS[@]}"
           fi
