@@ -6,25 +6,18 @@
  */
 import type { AuthOAuthResult } from "@opencode-ai/plugin";
 import type { KeycloakConfig } from "../config.js";
-import { pollDeviceToken, startDeviceAuthorization } from "../keycloak.js";
+import { startDeviceAuthorization } from "../keycloak.js";
+import { DeviceFlowError, waitForDeviceTokens, type DevicePollDeps } from "./device-poll.js";
 import { log } from "../log.js";
 import { toSuccess } from "./shared.js";
 
-export interface DeviceFlowDeps {
-  fetchImpl?: typeof fetch;
-  now?: () => number;
-  sleep?: (ms: number) => Promise<void>;
-}
-
-const defaultSleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+export type DeviceFlowDeps = DevicePollDeps;
 
 /** Build the device-code login method. */
 export async function deviceMethod(
   config: KeycloakConfig,
   deps: DeviceFlowDeps = {},
 ): Promise<AuthOAuthResult> {
-  const now = deps.now ?? Date.now;
-  const sleep = deps.sleep ?? defaultSleep;
   const device = await startDeviceAuthorization(config, deps);
 
   const verificationUrl = device.verificationUriComplete ?? device.verificationUri;
@@ -40,30 +33,22 @@ export async function deviceMethod(
       `Waiting for you to approve …`,
     method: "auto",
     callback: async () => {
-      let intervalMs = device.intervalMs;
-      while (now() < device.expiresAt) {
-        await sleep(intervalMs);
-        const result = await pollDeviceToken(config, device.deviceCode, deps);
-        switch (result.status) {
-          case "complete":
-            log.info(`device login succeeded for ${config.providerId}`);
-            return toSuccess(result.tokens);
-          case "slow_down":
-            // RFC 8628 §3.5: increase the interval by 5s on slow_down.
-            intervalMs += 5000;
-            break;
-          case "pending":
-            break;
-          case "denied":
-            log.error(`device login denied by the user for ${config.providerId}`);
-            return { type: "failed" };
-          case "expired":
-            log.error(`device code expired before approval for ${config.providerId}`);
-            return { type: "failed" };
+      try {
+        const tokens = await waitForDeviceTokens(config, device, deps);
+        log.info(`device login succeeded for ${config.providerId}`);
+        return toSuccess(tokens);
+      } catch (err) {
+        if (err instanceof DeviceFlowError && err.reason === "denied") {
+          log.error(`device login denied by the user for ${config.providerId}`);
+        } else if (err instanceof DeviceFlowError && err.reason === "expired") {
+          log.error(`device code expired before approval for ${config.providerId}`);
+        } else if (err instanceof DeviceFlowError) {
+          log.error(`device login timed out waiting for approval for ${config.providerId}`);
+        } else {
+          throw err;
         }
+        return { type: "failed" };
       }
-      log.error(`device login timed out waiting for approval for ${config.providerId}`);
-      return { type: "failed" };
     },
   };
 }
