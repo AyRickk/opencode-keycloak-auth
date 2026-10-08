@@ -275,6 +275,19 @@ installed folder (offline — see [Install](#install)). The plugin's `providerId
   Anything you put under `providers.keycloak` still wins over the plugin's
   defaults.
 
+### Browser behavior (both versions)
+
+- **The browser opens by itself** when you pick a browser method on a desktop:
+  OpenCode v2 opens the URL (in an interactive terminal or the TUI); on v1 the
+  plugin does it, since `opencode auth login` only prints `Go to: <url>`. On
+  SSH / containers / CI nothing is opened — use the printed URL or the device
+  flow.
+- **The "Authentication complete" tab closes itself only when the browser
+  allows it.** Browsers let a page close a tab only if it has a single history
+  entry — the case when Keycloak redirects straight back because you already
+  have an SSO session. After typing your password the tab has two entries and
+  must be closed by hand (Chrome, Firefox-based browsers; Safari not verified).
+
 ### OpenCode v1
 
 ```jsonc

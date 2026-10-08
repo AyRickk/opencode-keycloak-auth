@@ -47,6 +47,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   promise rejection.
 - (v2) Retrying a browser login no longer fails with "port already in use" while
   an abandoned attempt still holds the callback port.
+- (v1) `opencode auth login` did not open the browser: OpenCode v1 only prints
+  `Go to: <url>` and expects the plugin to open it. The v1 entry point now opens
+  it (when a local browser is detected). OpenCode v2 opens it itself.
+- The "Authentication complete" tab now closes itself when the browser allows
+  it — when Keycloak redirects straight back because an SSO session is active.
+  After typing a password, browsers forbid scripts from closing the tab, so it
+  stays open with a "you can close this tab" message.
 
 ## [0.4.2] - 2026-09-28
 
