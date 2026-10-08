@@ -7,10 +7,15 @@ import type { AddressInfo } from "node:net";
 import type { KeycloakConfig } from "../config.js";
 import { describe } from "../errors.js";
 
+// Browsers only honour window.close() for a tab with a single history entry
+// (Keycloak redirected straight back because an SSO session was active). After
+// a password form the tab has two entries and stays open, so the text says so.
 const SUCCESS_PAGE =
   "<!doctype html><html><head><meta charset=utf-8><title>OpenCode</title></head>" +
   "<body style='font-family:system-ui;padding:3rem;text-align:center'>" +
-  "<h2>✓ Authentication complete</h2><p>You can close this tab and return to OpenCode.</p></body></html>";
+  "<h2>✓ Authentication complete</h2>" +
+  "<p>You can close this tab and return to OpenCode.</p>" +
+  "<script>setTimeout(function(){window.close()},2000)</script></body></html>";
 
 export interface CallbackServer {
   /** Resolves with the authorization code, or rejects on error/timeout. */

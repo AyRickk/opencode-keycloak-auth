@@ -35,6 +35,17 @@ describe("startCallbackServer", () => {
     await expect(server.waitForCode(5_000)).resolves.toBe("the-code");
   });
 
+  it("serves a success page that closes the tab by itself when the browser allows it", async () => {
+    const { config } = await start("s1");
+    const res = await fetch(`http://127.0.0.1:${config.callbackPort}/callback?code=c&state=s1`);
+    const html = await res.text();
+
+    // Browsers only let a page close a tab with a single history entry (e.g. SSO
+    // already active); otherwise the text tells the user to close it.
+    expect(html).toMatch(/<script>[^<]*window\.close\(\)/);
+    expect(html).toMatch(/close this tab/i);
+  });
+
   it("rejects on a state mismatch (CSRF guard)", async () => {
     const { config, server } = await start("s1");
     const rejected = expect(server.waitForCode(5_000)).rejects.toThrow(/state mismatch/i);
