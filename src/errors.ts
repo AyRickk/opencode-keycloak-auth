@@ -85,3 +85,26 @@ export function describe(cause: unknown): string {
     return String(cause);
   }
 }
+
+/**
+ * The message shown when a login method is selected while the configuration is
+ * incomplete. Shared by the v1 and v2 entry points.
+ */
+export function notConfiguredMessage(reason: string): string {
+  return (
+    `Keycloak auth plugin is not configured. ${reason} ` +
+    `Set the "issuer" and "clientId" plugin options in opencode.json (or the ` +
+    `OPENCODE_KC_ISSUER / OPENCODE_KC_CLIENT_ID environment variables).`
+  );
+}
+
+/** The `warn` line logged when the plugin loads in ERROR mode. */
+export function incompleteConfigWarning(providerId: string, cause: unknown): string {
+  const reason = cause instanceof Error ? cause.message : String(cause);
+  const missing = cause instanceof ConfigError ? cause.missing : [];
+  return (
+    `configuration incomplete — provider ${JSON.stringify(providerId)} registered in ERROR mode` +
+    (missing.length ? ` (missing: ${missing.join(", ")})` : "") +
+    `; auth will fail until fixed. ${reason}`
+  );
+}

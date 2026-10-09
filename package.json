@@ -1,6 +1,6 @@
 {
   "name": "opencode-keycloak-auth",
-  "version": "0.4.2",
+  "version": "1.0.0-rc.1",
   "description": "OpenCode auth plugin: OAuth2/OIDC against Keycloak (Authorization Code + PKCE S256 and Device Authorization Grant) for an OpenAI-compatible provider.",
   "type": "module",
   "license": "MIT",
@@ -32,18 +32,23 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./server": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     }
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
+    "server.js",
     "README.md",
     "LICENSE",
     "CHANGELOG.md"
   ],
   "scripts": {
-    "build": "tsup",
+    "build": "tsup && node scripts/check-bundle.mjs",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
@@ -55,9 +60,15 @@
   "peerDependencies": {
     "@opencode-ai/plugin": ">=1.17.0"
   },
+  "peerDependenciesMeta": {
+    "@opencode-ai/plugin": {
+      "optional": true
+    }
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@opencode-ai/plugin": "^1.17.11",
+    "@opencode/plugin": "2.0.25",
     "@types/node": "^26.0.1",
     "@typescript-eslint/eslint-plugin": "^8.62.0",
     "@typescript-eslint/parser": "^8.62.0",

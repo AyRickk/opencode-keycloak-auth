@@ -6,7 +6,8 @@
 
 An [OpenCode](https://opencode.ai) **auth plugin** that logs in to **Keycloak**
 via OAuth2/OIDC and feeds short-lived, auto-refreshed access tokens to an
-**OpenAI-compatible** provider.
+**OpenAI-compatible** provider. **One package works on both OpenCode v1 and
+OpenCode v2.**
 
 It replaces the pattern of pasting a long-lived static JWT as `apiKey`: OpenCode
 now obtains a real access token from Keycloak and refreshes it automatically.
@@ -16,14 +17,16 @@ the provider validates (e.g. JWKS + claim policies).
 ## Contents
 
 - [Features](#features)
+- [Compatibility](#compatibility)
 - [Install](#install)
 - [Configuration](#configuration)
 - [Keycloak client setup](#keycloak-client-setup)
 - [`opencode.json`](#opencodejson)
+- [Moving from OpenCode v1 to v2](#moving-from-opencode-v1-to-v2)
 - [Logging in](#logging-in)
 - [Logging & diagnostics](#logging--diagnostics)
 - [Troubleshooting](#troubleshooting)
-- [How it maps to the OpenCode auth API](#how-it-maps-to-the-opencode-auth-api)
+- [How it maps to the OpenCode plugin APIs](#how-it-maps-to-the-opencode-plugin-apis)
 - [Contributing](#contributing)
 - [Security](#security)
 - [License](#license)
@@ -34,77 +37,100 @@ the provider validates (e.g. JWKS + claim policies).
   plus a **paste-the-code** fallback.
 - **Device Authorization Grant** fallback for headless / SSH / container hosts —
   auto-selected (offered first) when no local browser is detected.
-- **Automatic refresh, per request**: the loader installs a custom `fetch` that
-  refreshes the access token when it expires within 30s (configurable) and
-  persists the rotated tokens — on **every** request, not just at startup. A
-  long idle (e.g. overnight) never leaves you with a stale token: no restart, no
-  re-login.
+- **Automatic refresh.** On OpenCode v2 the host refreshes the token (~5 min
+  before expiry) through the plugin, which de-duplicates concurrent refreshes so
+  Keycloak refresh-token rotation never causes a spurious `invalid_grant`. On
+  OpenCode v1 the loader installs a custom `fetch` that refreshes the token on
+  **every** request (30s leeway, configurable). Either way, a long idle (e.g.
+  overnight) never leaves you with a stale token: no restart, no re-login.
 - **Public client, PKCE only** — no client secret is ever read or stored.
 - **Zero runtime dependencies** — only Node built-ins (`node:crypto`,
   `node:http`) and the global `fetch`. Builds and installs **offline** (suitable
   for on-prem / air-gapped environments).
-- Credential storage is delegated to OpenCode's native mechanism
-  (`auth.json`, mode `0600`).
+- Credential storage is delegated to OpenCode's native mechanism (v2: the
+  `credential` table of `opencode.db`; v1: `auth.json`, mode `0600`).
+
+## Compatibility
+
+| OpenCode           | Status       | Entry point used | Config key                           | Login                                        |
+| ------------------ | ------------ | ---------------- | ------------------------------------ | -------------------------------------------- |
+| **2.x** (≥ 2.0.25) | ✅ supported | `setup(ctx)`     | `"plugins"` (`{ package, options }`) | `/connect` or `opencode auth login keycloak` |
+| **1.17 – 1.18.x**  | ✅ supported | `server()`       | `"plugin"` (`[path, options]`)       | `opencode auth login`                        |
+
+The package exports a plain `{ id, setup, server }` object: OpenCode v2 calls
+`setup`, which lazily loads the v2 code; OpenCode v1 calls `server`, the
+unchanged v1 plugin. Verified end-to-end against a real Keycloak with OpenCode
+**2.0.25**, **1.18.35** and **1.17.11**. Older 2.0.x releases were not tested —
+the v2 plugin API is young, prefer the latest 2.x.
+
+> v1 credentials are **not** carried over to v2 automatically: log in once with
+> `/connect` after upgrading (see
+> [Moving from OpenCode v1 to v2](#moving-from-opencode-v1-to-v2)).
 
 ## Install
 
 > **How OpenCode loads a plugin.** OpenCode resolves a plugin entry either by
 > **package name from the npm registry** (needs network access — it downloads the
 > package itself, it does _not_ look in your project's or global `node_modules`)
-> **or by a filesystem path** to a folder that contains a `package.json` and a
-> built `dist/`. For an **offline / air-gapped** host you must use the
-> **filesystem-path** form — a bare package name will fail with
-> `Unknown provider "<id>"` because OpenCode cannot reach the registry.
+> **or by a filesystem path**. For an **offline / air-gapped** host you must use a
+> **filesystem path** (or the auto-loaded `plugins/` folder) — a bare package name
+> will fail because OpenCode cannot reach the registry.
 
-### 1. Build the artifact (on a machine with network access)
+### Option A — prebuilt single file (simplest, v1 and v2)
+
+Every [GitHub Release](https://github.com/AyRickk/opencode-keycloak-auth/releases)
+attaches a self-contained bundle `opencode-keycloak-auth.js` (zero runtime
+dependencies). Drop it into OpenCode's auto-load directory — the same file works
+on OpenCode v1 and v2:
+
+```bash
+mkdir -p ~/.config/opencode/plugins
+curl -fsSL -o ~/.config/opencode/plugins/opencode-keycloak-auth.js \
+  https://github.com/AyRickk/opencode-keycloak-auth/releases/latest/download/opencode-keycloak-auth.js
+```
+
+On an air-gapped host, copy the file there by any means. Auto-loaded plugins do
+not receive inline options, so configure them with `OPENCODE_KC_*` environment
+variables (see [Configuration](#configuration)). On OpenCode v2 the variables
+must be set in the environment of the background service (`opencode service
+restart` after changing them).
+
+> A project-local `.opencode/plugins/` folder works the same way.
+
+### Option B — tarball, referenced by path (offline, with inline options)
+
+Build (or download from the release) the tarball on a machine with network
+access:
 
 ```bash
 npm ci
-npm run build          # -> dist/ (ESM + d.ts)
+npm run build          # -> dist/ (single ESM file + d.ts), verified by scripts/check-bundle.mjs
 npm pack               # -> opencode-keycloak-auth-<version>.tgz
 ```
 
-> **Prebuilt artifact (no build needed).** Every [GitHub Release](https://github.com/AyRickk/opencode-keycloak-auth/releases)
-> attaches a ready-to-use, self-contained bundle `opencode-keycloak-auth.js`.
-> Drop it straight into OpenCode's auto-load directory and configure via
-> `OPENCODE_KC_*` env vars (auto-loaded plugins don't receive inline options):
->
-> ```bash
-> mkdir -p ~/.config/opencode/plugins
-> curl -fsSL -o ~/.config/opencode/plugins/keycloak.js \
->   https://github.com/AyRickk/opencode-keycloak-auth/releases/latest/download/opencode-keycloak-auth.js
-> ```
-
-### 2. Install it where OpenCode can load it
-
-Pick **one** of the following — all are plain `npm` commands.
-
-**a) From the npm registry (online hosts):** if you publish the package, just
-reference it by name in `opencode.json` (`"plugin": ["opencode-keycloak-auth"]`)
-and OpenCode downloads it on first run. No manual install step.
-
-**b) Vendored tarball (offline / air-gapped):** install the tarball into a
-dedicated folder, then reference the **extracted folder by path**:
+Install it into a dedicated folder on the target host — no network needed (the
+package has no dependencies):
 
 ```bash
 mkdir -p ~/.opencode-plugins && cd ~/.opencode-plugins
 npm init -y
-npm install /path/to/opencode-keycloak-auth-<version>.tgz
-# -> ~/.opencode-plugins/node_modules/opencode-keycloak-auth   (contains dist/)
+npm install --offline /path/to/opencode-keycloak-auth-<version>.tgz
+# -> ~/.opencode-plugins/node_modules/opencode-keycloak-auth
 ```
 
-Then in `opencode.json` point the plugin at that folder (see below):
+Then reference **that folder** (absolute path) in `opencode.json` — see
+[`opencode.json`](#opencodejson) for the v1 and v2 syntax.
 
-```jsonc
-"plugin": [["/home/you/.opencode-plugins/node_modules/opencode-keycloak-auth", { /* options */ }]]
-```
+> **OpenCode v2 needs a folder, not a file.** In `opencode.json` v2 ignores a
+> path to a `.js` file (`configured plugin path must be a directory` in the log)
+> and loads `<folder>/server.js` (then `<folder>/index.js`) — the package ships
+> a `server.js` for that. OpenCode v1 loads the folder through `package.json`.
+> Either way the folder must contain the built `dist/`.
 
-**c) Local checkout:** after `npm run build`, reference the checkout directory
-directly (`"plugin": [["/abs/path/to/opencode-keycloak-auth", { /* options */ }]]`).
+### Option C — npm registry (online hosts)
 
-> ⚠️ The referenced folder must contain a built `dist/` — OpenCode loads
-> `dist/index.js` via the package's `main`. If you skipped `npm run build`, the
-> plugin will fail to load.
+Reference the package by name (`"opencode-keycloak-auth"`) and OpenCode
+downloads it on first run. No manual install step.
 
 ### Offline note: models.dev
 
@@ -122,22 +148,22 @@ export OPENCODE_MODELS_PATH=/path/to/models.json
 
 Everything is configurable via environment variables (prefix `OPENCODE_KC_`)
 and/or plugin options in `opencode.json`. **Plugin options take precedence over
-environment variables.**
+environment variables.** The option names are identical on OpenCode v1 and v2.
 
-| Env var                       | Plugin option           | Default      | Description                                                   |
-| ----------------------------- | ----------------------- | ------------ | ------------------------------------------------------------- |
-| `OPENCODE_KC_ISSUER`          | `issuer`                | — (required) | Realm issuer URL, e.g. `https://kc.example.com/realms/agents` |
-| `OPENCODE_KC_CLIENT_ID`       | `clientId`              | — (required) | Public client id                                              |
-| `OPENCODE_KC_SCOPES`          | `scopes`                | `openid`     | Space/comma list; `openid` always added                       |
-| `OPENCODE_KC_OFFLINE_ACCESS`  | `offlineAccess`         | `true`       | Add `offline_access` for a durable refresh token (see below)  |
-| `OPENCODE_KC_PROVIDER_ID`     | `providerId`            | `keycloak`   | Provider id the auth hook attaches to                         |
-| `OPENCODE_KC_CALLBACK_HOST`   | `callbackHost`          | `127.0.0.1`  | Localhost callback bind host                                  |
-| `OPENCODE_KC_CALLBACK_PORT`   | `callbackPort`          | `49170`      | Localhost callback port (`0` = ephemeral)                     |
-| `OPENCODE_KC_REDIRECT_PATH`   | `redirectPath`          | `/callback`  | Redirect path                                                 |
-| `OPENCODE_KC_BASE_URL`        | `baseUrl`               | —            | Provider base URL (informational)                             |
-| `OPENCODE_KC_REFRESH_LEEWAY`  | `refreshLeewaySeconds`  | `30`         | Refresh this many seconds before expiry                       |
-| `OPENCODE_KC_BROWSER_TIMEOUT` | `browserTimeoutSeconds` | `300`        | Browser callback wait timeout                                 |
-| `OPENCODE_KC_LOG`             | —                       | `warn`       | Log level: `silent`/`error`/`warn`/`info`/`debug` (see below) |
+| Env var                       | Plugin option           | Default      | Description                                                      |
+| ----------------------------- | ----------------------- | ------------ | ---------------------------------------------------------------- |
+| `OPENCODE_KC_ISSUER`          | `issuer`                | — (required) | Realm issuer URL, e.g. `https://kc.example.com/realms/agents`    |
+| `OPENCODE_KC_CLIENT_ID`       | `clientId`              | — (required) | Public client id                                                 |
+| `OPENCODE_KC_SCOPES`          | `scopes`                | `openid`     | Space/comma list; `openid` always added                          |
+| `OPENCODE_KC_OFFLINE_ACCESS`  | `offlineAccess`         | `true`       | Add `offline_access` for a durable refresh token (see below)     |
+| `OPENCODE_KC_PROVIDER_ID`     | `providerId`            | `keycloak`   | Provider id (and, on v2, integration id) to attach to            |
+| `OPENCODE_KC_CALLBACK_HOST`   | `callbackHost`          | `127.0.0.1`  | Localhost callback bind host                                     |
+| `OPENCODE_KC_CALLBACK_PORT`   | `callbackPort`          | `49170`      | Localhost callback port (`0` = ephemeral)                        |
+| `OPENCODE_KC_REDIRECT_PATH`   | `redirectPath`          | `/callback`  | Redirect path                                                    |
+| `OPENCODE_KC_BASE_URL`        | `baseUrl`               | —            | v2: declares the provider with this base URL; v1: informational  |
+| `OPENCODE_KC_REFRESH_LEEWAY`  | `refreshLeewaySeconds`  | `30`         | v1 only: refresh this many seconds before expiry (ignored on v2) |
+| `OPENCODE_KC_BROWSER_TIMEOUT` | `browserTimeoutSeconds` | `300`        | Browser callback wait timeout                                    |
+| `OPENCODE_KC_LOG`             | —                       | `warn`       | Log level: `silent`/`error`/`warn`/`info`/`debug` (see below)    |
 
 ## Keycloak client setup
 
@@ -154,6 +180,10 @@ Create a client in your realm with:
   (add any other ports you configure; for `callbackPort: 0` allow
   `http://127.0.0.1/*`)
 - **Web Origins:** not required (no browser-based XHR to Keycloak from the app).
+
+> With PKCE enforced (S256), Keycloak also requires PKCE on the **device** grant.
+> The plugin sends it since the release that added OpenCode v2 support; earlier
+> versions failed the device login with `Missing parameter: code_challenge_method`.
 
 ### Staying logged in (offline tokens)
 
@@ -199,17 +229,75 @@ match what your provider's policies expect.
 
 ## `opencode.json`
 
-Declare the custom OpenAI-compatible provider and enable the plugin. The first
-element of each `plugin` entry is **either** the published package name (online)
-**or** a filesystem path to the built folder (offline — see Install):
+Declare the OpenAI-compatible provider and enable the plugin. The plugin entry is
+**either** the published package name (online) **or** an absolute path to the
+installed folder (offline — see [Install](#install)). The plugin's `providerId`
+(default `keycloak`) **must match** the provider key.
+
+### OpenCode v2
+
+```jsonc
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugins": [
+    {
+      // online: "opencode-keycloak-auth"; offline: absolute path to the installed folder
+      "package": "/home/you/.opencode-plugins/node_modules/opencode-keycloak-auth",
+      "options": {
+        "issuer": "https://kc.example.com/realms/agents",
+        "clientId": "opencode-cli",
+        "scopes": "openid aud-api",
+      },
+    },
+  ],
+  "providers": {
+    "keycloak": {
+      "name": "Inference gateway",
+      "package": "@ai-sdk/openai-compatible", // v2 maps it to @opencode/ai/providers/openai-compatible
+      "settings": { "baseURL": "https://api.example.com/v1" },
+      "headers": { "X-Client": "opencode" }, // optional, see below
+      "models": {
+        "qwen2.5-coder-32b": { "name": "Qwen2.5 Coder 32B" },
+        "llama-3.3-70b": { "name": "Llama 3.3 70B" },
+      },
+    },
+  },
+}
+```
+
+- OpenCode v2 itself sends the Keycloak access token as
+  `Authorization: Bearer <token>` to the provider bound to the integration —
+  the plugin no longer touches requests. A provider whose id equals the
+  plugin's `providerId` is bound automatically.
+- Alternatively, set the `baseUrl` option (or `OPENCODE_KC_BASE_URL`) and keep
+  only `providers.keycloak.models` in `opencode.json`: the plugin then declares
+  the provider (`@opencode/ai/providers/openai-compatible`, `settings.baseURL`).
+  Anything you put under `providers.keycloak` still wins over the plugin's
+  defaults.
+
+### Browser behavior (both versions)
+
+- **The browser opens by itself** when you pick a browser method on a desktop:
+  OpenCode v2 opens the URL itself (verified for `opencode auth login` in a
+  terminal; the TUI uses the same opener); on v1 the
+  plugin does it, since `opencode auth login` only prints `Go to: <url>`. On
+  SSH / containers / CI nothing is opened — use the printed URL or the device
+  flow.
+- **The "Authentication complete" tab closes itself only when the browser
+  allows it.** Browsers let a page close a tab only if it has a single history
+  entry — the case when Keycloak redirects straight back because you already
+  have an SSO session. After typing your password the tab has two entries and
+  must be closed by hand. Verified with Chrome; Firefox-based browsers apply the
+  same rule; Safari was not tested.
+
+### OpenCode v1
 
 ```jsonc
 {
   "$schema": "https://opencode.ai/config.json",
   "plugin": [
     [
-      // online: "opencode-keycloak-auth"
-      // offline: an absolute path to the built folder
+      // online: "opencode-keycloak-auth"; offline: absolute path to the installed folder
       "/home/you/.opencode-plugins/node_modules/opencode-keycloak-auth",
       {
         "issuer": "https://kc.example.com/realms/agents",
@@ -236,33 +324,78 @@ element of each `plugin` entry is **either** the published package name (online)
 }
 ```
 
-> **Provider npm package.** The `provider.keycloak.npm` package
+> **Provider npm package (v1).** The `provider.keycloak.npm` package
 > (`@ai-sdk/openai-compatible`) is fetched by OpenCode the first time you **call a
 > model** (not during login). On an air-gapped host, pre-install it the same way
-> as the plugin and OpenCode will reuse it from disk.
+> as the plugin and OpenCode will reuse it from disk. (OpenCode v2 ships the
+> OpenAI-compatible provider built in.)
 
-> The plugin's `provider` (default `keycloak`) **must match** the provider key
-> under `"provider"`. The plugin's `loader` returns `{ apiKey: <access_token> }`,
-> which the OpenAI-compatible provider sends as `Authorization: Bearer <token>`
-> to your API.
+### Identifying the client in gateway metrics
 
-You can also configure everything via env vars instead of plugin options:
+To tell OpenCode apart from other tools in gateway metrics (e.g. agentgateway
+per-client dashboards), add a static header — no plugin code involved:
+
+```jsonc
+// OpenCode v2
+"providers": { "keycloak": { "headers": { "X-Client": "opencode" } } }
+// OpenCode v1
+"provider": { "keycloak": { "options": { "headers": { "X-Client": "opencode" } } } }
+```
+
+### Environment variables instead of options
 
 ```bash
 export OPENCODE_KC_ISSUER="https://kc.example.com/realms/agents"
 export OPENCODE_KC_CLIENT_ID="opencode-cli"
 export OPENCODE_KC_SCOPES="openid aud-api"
+export OPENCODE_KC_BASE_URL="https://api.example.com/v1"   # v2: declares the provider
 ```
+
+## Moving from OpenCode v1 to v2
+
+1. Keep the same package (or bundle) — it serves both versions.
+2. Rewrite the config (option names do not change):
+   - `"plugin": [[path, opts]]` → `"plugins": [{ "package": path, "options": opts }]`
+   - `provider.<id>` (`npm`, `options.baseURL`, `options.headers`) →
+     `providers.<id>` (`package`, `settings.baseURL`, `headers`)
+3. **Log in again once** with `/connect` (TUI) or `opencode auth login keycloak`.
+   OpenCode v2 does not import the v1 `auth.json` on a fresh install (observed on
+   2.0.25), and a plugin cannot create an OAuth credential itself.
+
+   _Optional, to skip the browser:_ import the v1 offline token by hand (needs
+   `jq`; the token briefly appears in the process list):
+
+   ```bash
+   opencode api POST /api/credential -d "$(jq '{integrationID: "keycloak", label: "Keycloak (from v1)",
+     activate: true, value: {type: "oauth", methodID: "oauth", access: .keycloak.access,
+     refresh: .keycloak.refresh, expires: .keycloak.expires}}' ~/.local/share/opencode/auth.json)"
+   ```
+
+4. Running v1 and v2 side by side? Log in **separately** in each. If both use the
+   same (imported) refresh token and the realm rotates refresh tokens, whichever
+   refreshes first invalidates the other (`invalid_grant`).
 
 ## Logging in
 
+**OpenCode v2:** `/connect` in the TUI, or from a shell:
+
+```bash
+opencode auth login keycloak                    # pick a method
+opencode auth login keycloak --method device    # headless / SSH / devcontainer
+```
+
+**OpenCode v1:**
+
 ```bash
 opencode auth login
-# pick the "keycloak" provider, then a Keycloak method:
-#   - Browser (PKCE, auto-capture)   ← recommended on a workstation
-#   - Browser (paste the code)       ← fallback when the port is busy
-#   - Device code (headless / SSH)   ← recommended on a server/container
+# pick the "keycloak" provider, then a Keycloak method
 ```
+
+Methods (same on both):
+
+- **Browser (PKCE, auto-capture)** — recommended on a workstation (method id `oauth`)
+- **Browser (paste the code)** — fallback when the port is busy (method id `code`)
+- **Device code (headless / SSH)** — recommended on a server/container (method id `device`)
 
 On headless hosts (SSH / container / no `DISPLAY`) the **Device code** method is
 offered first automatically.
@@ -284,8 +417,15 @@ Secrets are never logged — access/refresh tokens and authorization codes are
 withheld entirely (or redacted to a short suffix). To trace a refresh problem:
 
 ```bash
+# OpenCode v1
 OPENCODE_KC_LOG=debug opencode --print-logs --log-level DEBUG
+# OpenCode v2: plugin console output is only visible with a private server
+OPENCODE_KC_LOG=debug opencode --standalone --print-logs --log-level debug
 ```
+
+On OpenCode v2 the background service owns the plugin, so its console output
+does not reach `opencode.log`; errors raised by login/refresh **do** appear there
+(`~/.local/share/opencode/log/opencode.log`, search for `Keycloak`).
 
 The default `warn` level exists specifically so the most common failure — a
 dropped/incomplete config — is no longer silent: you get
@@ -293,6 +433,33 @@ dropped/incomplete config — is no longer silent: you get
 instead of a provider that mysteriously stops working.
 
 ## Troubleshooting
+
+### OpenCode v2
+
+- **`opencode plugin list` does not show `opencode-keycloak-auth`.** A path in
+  `"plugins"` must be a **folder** (v2 logs `configured plugin path must be a
+directory` for a file). Use the installed package folder, or drop the
+  single-file bundle into `~/.config/opencode/plugins/`. Check with
+  `opencode api GET /api/plugin`.
+- **The integration shows `⚠ not configured (missing: …)`.** `issuer` /
+  `clientId` did not reach the plugin. Auto-loaded plugins get no options: set
+  `OPENCODE_KC_*` in the environment of the background service and run
+  `opencode service restart`.
+- **`Authentication failed — UnexpectedStatus: 500` when starting a login.**
+  OpenCode 2.0.x hides errors raised while _starting_ a login (e.g. Keycloak
+  unreachable, wrong issuer, client not allowed the device grant) behind HTTP 500. The real message is in `~/.local/share/opencode/log/opencode.log`.
+- **`Keycloak session expired (invalid_grant)` on a request.** The stored refresh
+  token is no longer accepted (session revoked or expired). Reconnect with
+  `/connect`. Keep `offline_access` so it does not happen every morning.
+- **`Callback port 49170 is already in use`.** Another program holds the port;
+  set `callbackPort`, or use the paste-the-code or device method. (A previous,
+  abandoned attempt of this plugin no longer blocks the port: a new attempt
+  replaces it.)
+- **Requests are sent without a token.** The provider id must equal the
+  plugin's `providerId` (or carry `integrationID`), and the integration must have
+  an active connection: `opencode api GET /api/integration/keycloak`.
+
+### OpenCode v1
 
 **`Unknown provider "keycloak"` / the provider is missing from `auth login`.**
 This means OpenCode never loaded the plugin, so no auth method is registered for
@@ -340,9 +507,22 @@ re-run. Run with `OPENCODE_KC_LOG=debug` to trace the token refresh lifecycle.
 **`Failed to fetch models.dev`.** Harmless — see the offline note in Install. Set
 `OPENCODE_DISABLE_MODELS_FETCH=1` to silence it.
 
-## How it maps to the OpenCode auth API
+## How it maps to the OpenCode plugin APIs
 
-This plugin targets `@opencode-ai/plugin` ≥ 1.17 (`AuthHook`):
+**OpenCode v2** (`@opencode/plugin` 2.x, `setup(ctx)`; analysis in
+[docs/v2-analysis.md](docs/v2-analysis.md)):
+
+- `ctx.integration.transform` registers integration `<providerId>` with three
+  `oauth` methods (`oauth`, `code`, `device`). Each has `authorize` (returns
+  `{ url, instructions, expiresAt, mode, callback }`) and `refresh`.
+- The credential is a `Credential.OAuth` (`access`, `refresh`, `expires` in ms,
+  `methodID`). The host calls `refresh` ~5 min before expiry and persists the
+  result; the plugin single-flights concurrent refreshes of the same token.
+- `ctx.provider.transform` declares the provider when `baseUrl` is set, or binds
+  an already-known one (`integrationID`). The host injects the Bearer itself.
+- No loader, no custom `fetch`, no `client.auth.set`.
+
+**OpenCode v1** (`@opencode-ai/plugin` ≥ 1.17, `AuthHook` via `server()`):
 
 - `provider` — the provider id to attach to.
 - `methods[]` — three `oauth` methods: browser auto-capture (`method: "auto"`),

@@ -9,7 +9,9 @@ docs fixes, tests, and features alike.
 - Be respectful. This project follows the [Code of Conduct](CODE_OF_CONDUCT.md).
 - Keep the plugin **dependency-free at runtime**: only Node built-ins
   (`node:crypto`, `node:http`) and the global `fetch`. New runtime dependencies
-  will not be accepted — it must build and run on air-gapped hosts.
+  will not be accepted — it must build and run on air-gapped hosts. OpenCode
+  packages (`@opencode-ai/plugin`, `@opencode/plugin`) may only be imported with
+  `import type` (enforced by `test/v2-export.test.ts`).
 - Never log or persist secrets. Access/refresh tokens and authorization codes
   must never reach the logs (route anything sensitive through `redact()`).
 
@@ -45,16 +47,18 @@ npm run typecheck && npm run lint && npm run format:check && npm test && npm run
 
 ```
 src/
-  index.ts        plugin entry: resolves config, registers the auth hook
-  config.ts       env + option resolution and validation
-  keycloak.ts     the OIDC client (code exchange, refresh, device grant)
-  loader.ts       per-provider token loader (refresh + persist, single-flight)
-  errors.ts       typed, user-facing errors
+  index.ts        dual entry: default { id, setup (v2, lazy), server (v1) }
+  config.ts       env + option resolution and validation (shared)
+  keycloak.ts     the OIDC client (code exchange, refresh, device grant + PKCE)
+  loader.ts       v1 token loader (per-request refresh + persist, single-flight)
+  errors.ts       typed, user-facing errors and ERROR-mode messages
   log.ts          leveled logger (OPENCODE_KC_LOG)
   pkce.ts         PKCE S256 helpers
   browser.ts      headless detection (device-flow ordering)
-  flows/          the three login flows (auto-capture, paste-code, device)
-test/             one *.test.ts per source module
+  flows/          v1 login flows + shared pieces (callback server, device polling)
+  v2/             OpenCode v2: setup, login methods, credential/refresh, provider
+scripts/          check-bundle.mjs (run by `npm run build`)
+test/             one *.test.ts per source module (v2-*.test.ts for src/v2)
 ```
 
 ## Testing
@@ -91,6 +95,12 @@ Releases are tag-driven:
    `## [X.Y.Z] - <date>` section (and update the compare links at the bottom).
 2. Bump `version` in `package.json`.
 3. Commit `chore: release vX.Y.Z` and push a matching `vX.Y.Z` tag.
+
+**Pre-releases** (`vX.Y.Z-rc.N`, `-alpha.N`, …) only need steps 2–3, without
+moving the changelog. Any version with a `-` is published under the npm dist-tag
+`next` (never `latest`) and as a GitHub pre-release (never "latest release"), so
+regular users are not affected. Install one with
+`npm install opencode-keycloak-auth@next` or `@X.Y.Z-rc.N`.
 
 The Release workflow then verifies, builds, attaches the artifacts
 (`opencode-keycloak-auth.js` + the tarball), and **sets the GitHub Release

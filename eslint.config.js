@@ -6,6 +6,10 @@ export default [
   { ignores: ["dist/**", "node_modules/**"] },
   js.configs.recommended,
   {
+    files: ["**/*.js", "**/*.mjs"],
+    languageOptions: { globals: { console: "readonly", process: "readonly" } },
+  },
+  {
     files: ["**/*.ts"],
     languageOptions: {
       parser: tsparser,

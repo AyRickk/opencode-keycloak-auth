@@ -2,9 +2,10 @@
  * Configuration resolution for the Keycloak auth plugin.
  *
  * Every value is configurable via environment variables (prefix `OPENCODE_KC_`)
- * and/or plugin options declared in `opencode.json`
- * (`"plugin": [["opencode-oauth-keycloak", { ... }]]`). Plugin options take
- * precedence over environment variables; both fall back to sane defaults.
+ * and/or plugin options declared in `opencode.json` (the `options` of a
+ * `"plugins"` entry on OpenCode v2, `"plugin": [[path, { ... }]]` on v1). Plugin
+ * options take precedence over environment variables; both fall back to sane
+ * defaults.
  *
  * No secrets are read or stored here: the Keycloak client is a PUBLIC client
  * and PKCE is mandatory, so there is deliberately no `clientSecret` option.
