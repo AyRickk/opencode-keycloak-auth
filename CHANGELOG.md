@@ -6,6 +6,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-09
+
 ### Added
 
 - **OpenCode v2 support** from the same package. The default export is now a
@@ -145,7 +147,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fallbacks, and a Device Authorization Grant for headless hosts. Automatic
   token refresh, public-client/PKCE-only, zero runtime dependencies.
 
-[Unreleased]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.4.2...v1.0.0
 [0.4.2]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/AyRickk/opencode-keycloak-auth/compare/v0.3.0...v0.4.0
