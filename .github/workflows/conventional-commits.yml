@@ -1,0 +1,36 @@
+name: Conventional Commits
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Check PR title and commit subjects
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Squash merges use the PR title as the commit subject; rebase merges keep each commit.
+          pattern='^(build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\([a-z0-9._/-]+\))?!?: [^ ].*$'
+          failed=0
+          check() {
+            if ! printf '%s' "$2" | grep -Eq "$pattern"; then
+              echo "::error::$1 does not follow Conventional Commits: $2"
+              failed=1
+            fi
+          }
+          check "PR title" "$PR_TITLE"
+          while IFS= read -r line; do
+            check "Commit ${line%% *}" "${line#* }"
+          done < <(git log --no-merges --format='%h %s' "$BASE_SHA..$HEAD_SHA")
+          exit $failed
