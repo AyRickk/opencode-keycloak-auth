@@ -9,6 +9,9 @@ on:
 
 permissions:
   contents: write
+  # npm Trusted Publishing: the job proves its identity to npm with an OIDC token,
+  # so no npm token is stored in the repository.
+  id-token: write
 
 jobs:
   release:
@@ -24,6 +27,9 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+
+      - name: Update npm (Trusted Publishing needs 11.5.1 or later)
+        run: npm install -g npm@^11.5.1
 
       - name: Install dependencies
         run: npm ci
@@ -70,7 +76,6 @@ jobs:
 
       - name: Publish to npm
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_TAG: ${{ steps.channel.outputs.npm_tag }}
         run: |
           VERSION="${GITHUB_REF_NAME#v}"
